@@ -181,23 +181,31 @@
 
 /* ── Print styles ────────────────────────────────────────────────────────── */
 @media print {
-  /* Hide the app shell — keep only the prep sheet */
+  /* White page */
+  body.prep-sheet-open {
+    background: #ffffff !important;
+    color: #111111 !important;
+  }
+
+  /* Hide the app shell */
   body.prep-sheet-open header,
   body.prep-sheet-open main {
     display: none !important;
   }
 
-  /* Strip the fixed overlay */
+  /* Strip the fixed overlay so content flows normally */
   body.prep-sheet-open .prep-sheet-backdrop {
     position: static !important;
     background: transparent !important;
     backdrop-filter: none !important;
     padding: 0 !important;
+    margin: 0 !important;
     overflow: visible !important;
     display: block !important;
+    width: 100% !important;
   }
 
-  /* Full-page white content card */
+  /* Full-width white content */
   body.prep-sheet-open .prep-sheet-content {
     border: none !important;
     box-shadow: none !important;
@@ -206,40 +214,74 @@
     width: 100% !important;
     background: #ffffff !important;
     color: #111111 !important;
+    margin: 0 !important;
   }
 
-  /* All text dark on white */
+  /* Force all text and borders dark */
+  body.prep-sheet-open .prep-sheet-content,
   body.prep-sheet-open .prep-sheet-content * {
     color: #111111 !important;
+  }
+
+  body.prep-sheet-open .prep-sheet-content table,
+  body.prep-sheet-open .prep-sheet-content th,
+  body.prep-sheet-open .prep-sheet-content td,
+  body.prep-sheet-open .prep-sheet-content div,
+  body.prep-sheet-open .prep-sheet-content p,
+  body.prep-sheet-open .prep-sheet-content span {
     border-color: #d1d5db !important;
   }
 
-  body.prep-sheet-open .prep-sheet-content .ps-meta-bar {
+  /* Meta bar tiles */
+  body.prep-sheet-open .ps-meta-bar {
     background-color: #f3f4f6 !important;
-    border-color: #d1d5db !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
-  body.prep-sheet-open .prep-sheet-content .ps-category-label {
+  body.prep-sheet-open .ps-meta-bar > div {
+    background-color: #f3f4f6 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Table header rows */
+  body.prep-sheet-open .prep-sheet-content thead tr,
+  body.prep-sheet-open .prep-sheet-content thead {
+    background-color: #f3f4f6 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.prep-sheet-open .prep-sheet-content th {
+    background-color: #f3f4f6 !important;
+  }
+
+  /* Category label border */
+  body.prep-sheet-open .ps-category-label {
+    border-bottom-color: #374151 !important;
     color: #374151 !important;
   }
 
-  body.prep-sheet-open .prep-sheet-content thead tr {
-    background-color: #f3f4f6 !important;
+  /* Signature lines */
+  body.prep-sheet-open .ps-sig-line {
+    border-top-color: #374151 !important;
   }
 
-  /* Hide buttons and chrome */
+  /* Hide all buttons/chrome */
   .no-print {
     display: none !important;
   }
 
-  /* Keep categories together */
+  /* Avoid splitting categories across pages */
   .ps-category-block {
     page-break-inside: avoid;
+    break-inside: avoid;
   }
 
-  /* Signature section on its own */
   .ps-signature-block {
     page-break-inside: avoid;
+    break-inside: avoid;
   }
 }
 

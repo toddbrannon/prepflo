@@ -55,9 +55,39 @@ interface SavedEvent {
 
 const MENU_KEY = "menu-database-items";
 const EVENTS_KEY = "build-events";
+const COMPANY_KEY = "eventops-company-name";
+
+function loadCompanyName(): string {
+  return localStorage.getItem(COMPANY_KEY) ?? "";
+}
+function saveCompanyName(name: string) {
+  localStorage.setItem(COMPANY_KEY, name);
+}
+
+const SEED_ITEMS: MenuItem[] = [
+  { id: "seed-1",  name: "Bruschetta al Pomodoro",       category: "Appetizers",       unit: "portions", prepInstructions: "Toast bread, rub with garlic, top with diced tomato, fresh basil, and olive oil. Season with flaky salt just before serving." },
+  { id: "seed-2",  name: "Caprese Skewers",               category: "Appetizers",       unit: "pieces",   prepInstructions: "Thread cherry tomatoes, fresh mozzarella, and basil onto skewers. Drizzle with balsamic glaze before service." },
+  { id: "seed-3",  name: "Herb-Roasted Chicken Breast",   category: "Proteins",         unit: "portions", prepInstructions: "Season with rosemary, thyme, garlic, and olive oil. Roast at 375°F to internal temp of 165°F. Rest 5 min before slicing." },
+  { id: "seed-4",  name: "Pan-Seared Salmon",             category: "Proteins",         unit: "portions", prepInstructions: "Season with salt, pepper, lemon zest. Sear skin-side down 4 min, flip 3 min. Finish with butter baste and fresh dill." },
+  { id: "seed-5",  name: "Beef Tenderloin",               category: "Proteins",         unit: "lbs",      prepInstructions: "Tie, season liberally with salt and pepper. Sear all sides in high-heat pan, roast at 425°F to 130°F internal for medium-rare. Rest 10 min before slicing." },
+  { id: "seed-6",  name: "Roasted Garlic Mashed Potatoes",category: "Starches",         unit: "portions", prepInstructions: "Boil Yukon Golds until tender. Mash with roasted garlic, butter, and cream. Season to taste. Keep warm in bain-marie for service." },
+  { id: "seed-7",  name: "Wild Rice Pilaf",               category: "Starches",         unit: "portions", prepInstructions: "Sauté shallots and thyme, toast rice 2 min. Add stock, bring to boil, then simmer 45 min. Fold in toasted pecans before serving." },
+  { id: "seed-8",  name: "Roasted Seasonal Vegetables",   category: "Vegetables",       unit: "portions", prepInstructions: "Toss with olive oil, salt, pepper, and fresh thyme. Roast at 400°F 20–25 min until caramelized. Finish with squeeze of lemon." },
+  { id: "seed-9",  name: "Sautéed Haricots Verts",        category: "Vegetables",       unit: "lbs",      prepInstructions: "Blanch 2 min, shock in ice water. Sauté with shallots and butter to order. Season and finish with lemon zest and toasted almonds." },
+  { id: "seed-10", name: "Red Wine Demi-Glace",            category: "Sauces & Dressings", unit: "qts",  prepInstructions: "Reduce red wine with shallots, add brown stock, simmer until sauce coats spoon. Strain and mount with cold butter before service." },
+  { id: "seed-11", name: "Caesar Salad",                  category: "Salads",           unit: "portions", prepInstructions: "Toss romaine with house Caesar dressing, shaved Parmesan, and croutons. Dress to order only — do not pre-dress." },
+  { id: "seed-12", name: "Chocolate Lava Cake",           category: "Desserts",         unit: "portions", prepInstructions: "Bake at 425°F for exactly 12 min. Centers should be warm and molten. Serve immediately with vanilla crème anglaise." },
+];
 
 function loadMenuItems(): MenuItem[] {
-  try { return JSON.parse(localStorage.getItem(MENU_KEY) ?? "[]"); } catch { return []; }
+  try {
+    const raw = localStorage.getItem(MENU_KEY);
+    if (raw === null) {
+      saveMenuItems(SEED_ITEMS);
+      return SEED_ITEMS;
+    }
+    return JSON.parse(raw);
+  } catch { return []; }
 }
 function saveMenuItems(items: MenuItem[]) {
   localStorage.setItem(MENU_KEY, JSON.stringify(items));
@@ -81,7 +111,7 @@ function formatDate(dateStr: string) {
 
 // ─── Prep Sheet Modal ─────────────────────────────────────────────────────────
 
-function PrepSheetModal({ event, onClose }: { event: SavedEvent; onClose: () => void }) {
+function PrepSheetModal({ event, companyName, onClose }: { event: SavedEvent; companyName: string; onClose: () => void }) {
   const usedCategories = CATEGORIES.filter((cat) => event.lineItems.some((li) => li.category === cat));
   const generatedAt = new Date().toLocaleString("en-US", {
     month: "short", day: "numeric", year: "numeric",
@@ -111,7 +141,9 @@ function PrepSheetModal({ event, onClose }: { event: SavedEvent; onClose: () => 
                   <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
-              <span className="font-heading text-sm font-semibold tracking-wide text-muted-foreground uppercase">EventOps — Prep Sheet</span>
+              <span className="font-heading text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+                {companyName ? companyName : "EventOps"} — Prep Sheet
+              </span>
             </div>
             <div className="flex items-center gap-3">
               <span className="text-xs text-muted-foreground">Generated {generatedAt}</span>
@@ -212,7 +244,7 @@ function PrepSheetModal({ event, onClose }: { event: SavedEvent; onClose: () => 
             {["Prepared by", "Approved by"].map((label) => (
               <div key={label}>
                 <div className="h-10" />
-                <div className="border-t border-foreground/40 pt-2">
+                <div className="ps-sig-line border-t border-foreground/40 pt-2">
                   <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</p>
                   <div className="mt-1 h-5" />
                 </div>
@@ -769,6 +801,8 @@ function App() {
   const [activeTab, setActiveTab] = useState<Tab>("events");
   const [editingEvent, setEditingEvent] = useState<SavedEvent | null>(null);
   const [prepSheetEvent, setPrepSheetEvent] = useState<SavedEvent | null>(null);
+  const [companyName, setCompanyName] = useState(loadCompanyName);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   function handleEdit(event: SavedEvent) {
     setEditingEvent(event);
@@ -781,40 +815,106 @@ function App() {
 
   function handleTabChange(tab: Tab) {
     if (tab !== "build-event") setEditingEvent(null);
+    setSettingsOpen(false);
     setActiveTab(tab);
   }
 
+  function handleCompanyNameChange(val: string) {
+    setCompanyName(val);
+    saveCompanyName(val);
+  }
+
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
+    <div className="min-h-screen bg-background text-foreground flex flex-col"
+      onClick={(e) => {
+        const target = e.target as HTMLElement;
+        if (settingsOpen && !target.closest("[data-settings]")) setSettingsOpen(false);
+      }}
+    >
       {prepSheetEvent && (
-        <PrepSheetModal event={prepSheetEvent} onClose={() => setPrepSheetEvent(null)} />
+        <PrepSheetModal event={prepSheetEvent} companyName={companyName} onClose={() => setPrepSheetEvent(null)} />
       )}
 
       <header className="no-print sticky top-0 z-40 w-full border-b border-border bg-card/80 backdrop-blur-md">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="flex h-16 items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="h-7 w-7 rounded-md bg-accent flex items-center justify-center">
+
+            {/* Logo + company name */}
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-7 w-7 rounded-md bg-accent flex items-center justify-center flex-shrink-0">
                 <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="hsl(222 18% 9%)" strokeWidth={2.5}>
                   <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
-              <span className="font-heading text-xl font-semibold tracking-wide text-foreground hidden sm:block">EventOps</span>
+              <div className="hidden sm:block min-w-0">
+                {companyName ? (
+                  <div className="leading-tight">
+                    <p className="font-heading text-base font-semibold tracking-wide text-foreground truncate">{companyName}</p>
+                    <p className="font-heading text-[11px] font-medium text-muted-foreground tracking-widest uppercase">EventOps</p>
+                  </div>
+                ) : (
+                  <span className="font-heading text-xl font-semibold tracking-wide text-foreground">EventOps</span>
+                )}
+              </div>
             </div>
 
-            <nav className="flex items-center gap-1">
-              {tabs.map((tab) => (
-                <button key={tab.id} onClick={() => handleTabChange(tab.id)}
+            <div className="flex items-center gap-1">
+              {/* Nav tabs */}
+              <nav className="flex items-center gap-1 mr-2">
+                {tabs.map((tab) => (
+                  <button key={tab.id} onClick={() => handleTabChange(tab.id)}
+                    className={[
+                      "relative px-4 py-2 rounded-md text-sm font-medium transition-all",
+                      activeTab === tab.id
+                        ? "text-accent-foreground bg-accent"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary",
+                    ].join(" ")}>
+                    <span className="font-heading tracking-wide">{tab.label}</span>
+                  </button>
+                ))}
+              </nav>
+
+              {/* Settings gear */}
+              <div className="relative" data-settings>
+                <button
+                  onClick={() => setSettingsOpen((o) => !o)}
                   className={[
-                    "relative px-4 py-2 rounded-md text-sm font-medium transition-all",
-                    activeTab === tab.id
-                      ? "text-accent-foreground bg-accent"
+                    "rounded-md p-2 transition-colors",
+                    settingsOpen
+                      ? "bg-secondary text-foreground"
                       : "text-muted-foreground hover:text-foreground hover:bg-secondary",
-                  ].join(" ")}>
-                  <span className="font-heading tracking-wide">{tab.label}</span>
+                  ].join(" ")}
+                  aria-label="Settings"
+                >
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                    <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                  </svg>
                 </button>
-              ))}
-            </nav>
+
+                {settingsOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-72 rounded-lg border border-border bg-card shadow-xl z-50 p-4 space-y-3">
+                    <p className="font-heading text-xs font-bold uppercase tracking-widest text-muted-foreground">Settings</p>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-foreground" htmlFor="company-name-input">
+                        Company Name
+                      </label>
+                      <input
+                        id="company-name-input"
+                        type="text"
+                        value={companyName}
+                        onChange={(e) => handleCompanyNameChange(e.target.value)}
+                        placeholder="e.g. Harvest Catering Co."
+                        className={inputClass}
+                        autoFocus
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Appears in the header and on printed prep sheets.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </header>
