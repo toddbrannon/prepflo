@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { DEMO_MENU, DEMO_EVENTS } from "./demo-data.js";
 
 // ─── Types & constants ────────────────────────────────────────────────────────
 
@@ -79,118 +80,30 @@ function saveDishes(dishes: Dish[]) { localStorage.setItem(MENU_KEY, JSON.string
 function loadDishes(): Dish[] {
   try {
     const raw = localStorage.getItem(MENU_KEY);
-    if (raw === null) { saveDishes(SEED_DISHES); return SEED_DISHES; }
+    // Seed if never set OR if set to an empty array
+    if (raw === null) { saveDishes(DEMO_MENU as Dish[]); return DEMO_MENU as Dish[]; }
     const parsed = JSON.parse(raw);
-    // Auto-migrate from old MenuItem format (no prepItems) → reseed
-    if (Array.isArray(parsed) && parsed.length > 0 && !("prepItems" in parsed[0])) {
-      saveDishes(SEED_DISHES); return SEED_DISHES;
-    }
+    if (!Array.isArray(parsed) || parsed.length === 0) { saveDishes(DEMO_MENU as Dish[]); return DEMO_MENU as Dish[]; }
+    // Auto-migrate from old MenuItem format (no prepItems) → reseed from demo
+    if (!("prepItems" in parsed[0])) { saveDishes(DEMO_MENU as Dish[]); return DEMO_MENU as Dish[]; }
     return parsed;
-  } catch { return []; }
+  } catch { return DEMO_MENU as Dish[]; }
 }
 
 function persistEvents(events: SavedEvent[]) { localStorage.setItem(EVENTS_KEY, JSON.stringify(events)); }
 function loadEvents(): SavedEvent[] {
   try {
     const raw = localStorage.getItem(EVENTS_KEY);
-    if (!raw) return [];
+    // Seed if never set OR if set to an empty array
+    if (raw === null) { persistEvents(DEMO_EVENTS as SavedEvent[]); return DEMO_EVENTS as SavedEvent[]; }
     const parsed = JSON.parse(raw);
-    // Auto-migrate from old format (lineItems) → clear
-    if (Array.isArray(parsed) && parsed.length > 0 && !("dishes" in parsed[0])) {
-      localStorage.removeItem(EVENTS_KEY); return [];
-    }
+    if (!Array.isArray(parsed) || parsed.length === 0) { persistEvents(DEMO_EVENTS as SavedEvent[]); return DEMO_EVENTS as SavedEvent[]; }
+    // Auto-migrate from old format (lineItems) → clear and seed from demo
+    if (!("dishes" in parsed[0])) { persistEvents(DEMO_EVENTS as SavedEvent[]); return DEMO_EVENTS as SavedEvent[]; }
     return parsed;
-  } catch { return []; }
+  } catch { return DEMO_EVENTS as SavedEvent[]; }
 }
 
-// ─── Seed data ────────────────────────────────────────────────────────────────
-
-const SEED_DISHES: Dish[] = [
-  {
-    id: "dish-1", name: "Charcuterie & Cheese Board", category: "Boards",
-    prepItems: [
-      { id: "d1p1", name: "Cured Meats Selection",    defaultQty: "2 lbs",    allergyNote: "" },
-      { id: "d1p2", name: "Artisan Cheeses",           defaultQty: "1.5 lbs", allergyNote: "Dairy" },
-      { id: "d1p3", name: "Seasonal Fruit & Garnish",  defaultQty: "1 lb",    allergyNote: "" },
-      { id: "d1p4", name: "Crackers & Crostini",       defaultQty: "3 packs", allergyNote: "Gluten" },
-      { id: "d1p5", name: "Honeycomb & Preserves",     defaultQty: "4 oz",    allergyNote: "" },
-    ],
-  },
-  {
-    id: "dish-2", name: "Bruschetta al Pomodoro", category: "Passed Appetizers",
-    prepItems: [
-      { id: "d2p1", name: "Toasted Crostini",          defaultQty: "60 pcs",  allergyNote: "Gluten" },
-      { id: "d2p2", name: "Tomato & Basil Topping",    defaultQty: "2 qts",   allergyNote: "" },
-    ],
-  },
-  {
-    id: "dish-3", name: "Caprese Skewers", category: "Passed Appetizers",
-    prepItems: [
-      { id: "d3p1", name: "Fresh Mozzarella",          defaultQty: "1.5 lbs", allergyNote: "Dairy" },
-      { id: "d3p2", name: "Cherry Tomatoes",           defaultQty: "1 pt",    allergyNote: "" },
-      { id: "d3p3", name: "Basil Leaves",              defaultQty: "1 bunch", allergyNote: "" },
-      { id: "d3p4", name: "Balsamic Glaze",            defaultQty: "4 oz",    allergyNote: "" },
-    ],
-  },
-  {
-    id: "dish-4", name: "Caesar Salad", category: "Sides / Salads",
-    prepItems: [
-      { id: "d4p1", name: "Romaine Hearts",            defaultQty: "4 heads", allergyNote: "" },
-      { id: "d4p2", name: "House Caesar Dressing",     defaultQty: "1 qt",    allergyNote: "Eggs, Anchovies, Dairy" },
-      { id: "d4p3", name: "Shaved Parmesan",           defaultQty: "0.5 lb",  allergyNote: "Dairy" },
-      { id: "d4p4", name: "House-Made Croutons",       defaultQty: "2 cups",  allergyNote: "Gluten" },
-    ],
-  },
-  {
-    id: "dish-5", name: "Wild Rice Pilaf", category: "Sides / Salads",
-    prepItems: [
-      { id: "d5p1", name: "Wild Rice Blend",           defaultQty: "3 lbs dry", allergyNote: "" },
-      { id: "d5p2", name: "Chicken Stock",             defaultQty: "2 qts",   allergyNote: "" },
-      { id: "d5p3", name: "Toasted Pecans",            defaultQty: "0.5 lb",  allergyNote: "Tree Nuts" },
-      { id: "d5p4", name: "Shallots & Fresh Herbs",    defaultQty: "4 oz",    allergyNote: "" },
-    ],
-  },
-  {
-    id: "dish-6", name: "Roasted Garlic Mashed Potatoes", category: "Sides / Salads",
-    prepItems: [
-      { id: "d6p1", name: "Yukon Gold Potatoes",       defaultQty: "10 lbs",  allergyNote: "" },
-      { id: "d6p2", name: "Roasted Garlic",            defaultQty: "6 heads", allergyNote: "" },
-      { id: "d6p3", name: "Butter & Heavy Cream",      defaultQty: "1 lb / 1 pt", allergyNote: "Dairy" },
-    ],
-  },
-  {
-    id: "dish-7", name: "Herb-Roasted Chicken Breast", category: "Entrees",
-    prepItems: [
-      { id: "d7p1", name: "Airline Chicken Breasts",   defaultQty: "30 portions", allergyNote: "" },
-      { id: "d7p2", name: "Herb Marinade",             defaultQty: "1 qt",    allergyNote: "" },
-      { id: "d7p3", name: "Pan Jus",                   defaultQty: "1 qt",    allergyNote: "" },
-    ],
-  },
-  {
-    id: "dish-8", name: "Beef Tenderloin", category: "Entrees",
-    prepItems: [
-      { id: "d8p1", name: "Beef Tenderloin Roasts",    defaultQty: "10 lbs",  allergyNote: "" },
-      { id: "d8p2", name: "Red Wine Demi-Glace",       defaultQty: "1 qt",    allergyNote: "" },
-      { id: "d8p3", name: "Garlic Compound Butter",    defaultQty: "0.5 lb",  allergyNote: "Dairy" },
-    ],
-  },
-  {
-    id: "dish-9", name: "Pan-Seared Salmon", category: "Entrees",
-    prepItems: [
-      { id: "d9p1", name: "Salmon Fillets 6 oz",       defaultQty: "30 portions", allergyNote: "Fish" },
-      { id: "d9p2", name: "Lemon Beurre Blanc",        defaultQty: "1 qt",    allergyNote: "Dairy" },
-      { id: "d9p3", name: "Fresh Dill Garnish",        defaultQty: "1 bunch", allergyNote: "" },
-    ],
-  },
-  {
-    id: "dish-10", name: "Chocolate Lava Cake", category: "Desserts",
-    prepItems: [
-      { id: "d10p1", name: "Lava Cake Molds",          defaultQty: "30 pcs",  allergyNote: "Eggs, Gluten, Dairy" },
-      { id: "d10p2", name: "Vanilla Crème Anglaise",   defaultQty: "1 qt",    allergyNote: "Eggs, Dairy" },
-      { id: "d10p3", name: "Fresh Berry Garnish",      defaultQty: "1 pt",    allergyNote: "" },
-    ],
-  },
-];
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
