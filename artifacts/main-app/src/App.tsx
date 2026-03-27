@@ -83,38 +83,86 @@ function formatDate(dateStr: string) {
 
 function PrepSheetModal({ event, onClose }: { event: SavedEvent; onClose: () => void }) {
   const usedCategories = CATEGORIES.filter((cat) => event.lineItems.some((li) => li.category === cat));
+  const generatedAt = new Date().toLocaleString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "numeric", minute: "2-digit", hour12: true,
+  });
+
+  // Add body class so print CSS can isolate this modal
+  useEffect(() => {
+    document.body.classList.add("prep-sheet-open");
+    return () => document.body.classList.remove("prep-sheet-open");
+  }, []);
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto py-8 px-4"
+      className="prep-sheet-backdrop fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto py-8 px-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full max-w-3xl rounded-xl border border-border bg-card shadow-2xl">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
-          <div>
-            <h2 className="font-heading text-2xl font-semibold text-foreground">{event.name}</h2>
-            <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-              {event.client && <span>Client: <span className="text-foreground">{event.client}</span></span>}
-              {event.date && <span>Date: <span className="text-foreground">{formatDate(event.date)}</span></span>}
-              {event.guestCount && <span>Guests: <span className="text-foreground">{event.guestCount}</span></span>}
+      <div className="prep-sheet-content w-full max-w-3xl rounded-xl border border-border bg-card shadow-2xl">
+
+        {/* ── Document header ── */}
+        <div className="border-b border-border px-6 pt-6 pb-5">
+          {/* Top row: brand + timestamp */}
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded bg-accent flex items-center justify-center flex-shrink-0">
+                <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5" stroke="hsl(222 18% 9%)" strokeWidth={2.5}>
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+              <span className="font-heading text-sm font-semibold tracking-wide text-muted-foreground uppercase">EventOps — Prep Sheet</span>
             </div>
-            {event.notes && (
-              <p className="mt-2 text-sm text-muted-foreground italic">{event.notes}</p>
-            )}
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground">Generated {generatedAt}</span>
+              {/* Print button */}
+              <button
+                onClick={() => window.print()}
+                className="no-print inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:brightness-110 transition-all"
+              >
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                  <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v5a2 2 0 002 2h1v2a1 1 0 001 1h8a1 1 0 001-1v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a1 1 0 00-1-1H6a1 1 0 00-1 1zm2 0h6v3H7V4zm-1 9a1 1 0 112 0 1 1 0 01-2 0zm2 2v2h4v-2H8z" clipRule="evenodd" />
+                </svg>
+                Print
+              </button>
+              {/* Close button */}
+              <button
+                onClick={onClose}
+                className="no-print rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                aria-label="Close"
+              >
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
           </div>
-          <button
-            onClick={onClose}
-            className="flex-shrink-0 rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-            aria-label="Close"
-          >
-            <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </button>
+
+          {/* Event name */}
+          <h1 className="font-heading text-3xl font-semibold tracking-wide text-foreground leading-tight">
+            {event.name}
+          </h1>
+          {event.notes && (
+            <p className="mt-1.5 text-sm text-muted-foreground italic">{event.notes}</p>
+          )}
+
+          {/* Metadata bar */}
+          <div className="ps-meta-bar mt-4 flex flex-wrap gap-px rounded-lg border border-border overflow-hidden text-sm">
+            {[
+              { label: "Client", value: event.client || "—" },
+              { label: "Date", value: event.date ? formatDate(event.date) : "—" },
+              { label: "Guest Count", value: event.guestCount || "—" },
+              { label: "Total Items", value: String(event.lineItems.length) },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex-1 min-w-[120px] bg-muted/40 px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">{label}</p>
+                <p className="font-medium text-foreground">{value}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Body */}
+        {/* ── Items by category ── */}
         <div className="px-6 py-6 space-y-7">
           {event.lineItems.length === 0 ? (
             <p className="text-sm text-muted-foreground italic">No items on this event.</p>
@@ -122,24 +170,26 @@ function PrepSheetModal({ event, onClose }: { event: SavedEvent; onClose: () => 
             usedCategories.map((cat) => {
               const catItems = event.lineItems.filter((li) => li.category === cat);
               return (
-                <div key={cat}>
-                  <h3 className="font-heading text-xs font-semibold text-accent uppercase tracking-widest mb-3">{cat}</h3>
+                <div key={cat} className="ps-category-block">
+                  <p className="ps-category-label font-heading text-xs font-bold uppercase tracking-widest text-accent pb-1.5 mb-3 border-b border-border">
+                    {cat}
+                  </p>
                   <div className="rounded-lg border border-border overflow-hidden">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-muted/60 border-b border-border">
-                          <th className="text-left px-4 py-2 font-semibold text-foreground w-[28%]">Item</th>
-                          <th className="text-right px-4 py-2 font-semibold text-foreground w-[14%]">Qty</th>
-                          <th className="text-left px-4 py-2 font-semibold text-foreground w-[10%]">Unit</th>
-                          <th className="text-left px-4 py-2 font-semibold text-foreground">Prep Instructions</th>
+                          <th className="text-left px-4 py-2.5 font-semibold text-foreground w-[26%]">Item Name</th>
+                          <th className="text-right px-4 py-2.5 font-semibold text-foreground w-[10%]">Qty</th>
+                          <th className="text-left px-4 py-2.5 font-semibold text-foreground w-[10%]">Unit</th>
+                          <th className="text-left px-4 py-2.5 font-semibold text-foreground">Prep Instructions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
                         {catItems.map((li) => (
                           <tr key={li.menuItemId} className="bg-card">
                             <td className="px-4 py-3 font-medium text-foreground align-top">{li.name}</td>
-                            <td className="px-4 py-3 text-right text-foreground align-top tabular-nums">
-                              {li.quantity || <span className="text-muted-foreground italic">—</span>}
+                            <td className="px-4 py-3 text-right text-foreground align-top tabular-nums font-medium">
+                              {li.quantity || <span className="text-muted-foreground font-normal">—</span>}
                             </td>
                             <td className="px-4 py-3 text-muted-foreground align-top">{li.unit}</td>
                             <td className="px-4 py-3 text-muted-foreground align-top whitespace-pre-wrap text-xs leading-relaxed">
@@ -156,7 +206,23 @@ function PrepSheetModal({ event, onClose }: { event: SavedEvent; onClose: () => 
           )}
         </div>
 
-        <div className="border-t border-border px-6 py-4 flex justify-end">
+        {/* ── Signature lines ── */}
+        <div className="ps-signature-block border-t border-border px-6 py-6">
+          <div className="grid grid-cols-2 gap-12">
+            {["Prepared by", "Approved by"].map((label) => (
+              <div key={label}>
+                <div className="h-10" />
+                <div className="border-t border-foreground/40 pt-2">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</p>
+                  <div className="mt-1 h-5" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Footer action row (screen only) ── */}
+        <div className="no-print border-t border-border px-6 py-4 flex justify-end">
           <button
             onClick={onClose}
             className="rounded-md border border-border px-6 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
@@ -164,6 +230,7 @@ function PrepSheetModal({ event, onClose }: { event: SavedEvent; onClose: () => 
             Close
           </button>
         </div>
+
       </div>
     </div>
   );
@@ -723,7 +790,7 @@ function App() {
         <PrepSheetModal event={prepSheetEvent} onClose={() => setPrepSheetEvent(null)} />
       )}
 
-      <header className="sticky top-0 z-40 w-full border-b border-border bg-card/80 backdrop-blur-md">
+      <header className="no-print sticky top-0 z-40 w-full border-b border-border bg-card/80 backdrop-blur-md">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="flex h-16 items-center justify-between gap-4">
             <div className="flex items-center gap-3">
