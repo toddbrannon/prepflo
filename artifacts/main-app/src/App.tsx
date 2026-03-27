@@ -224,13 +224,9 @@ function PrepSheetModal({ event, companyName, onClose }: { event: SavedEvent; co
     hour: "numeric", minute: "2-digit", hour12: true,
   });
 
-  // Only show dishes that have at least one prep item with a qty entered
-  const dishesWithQty = event.dishes.map((d) => ({
-    ...d,
-    prepItems: d.prepItems.filter((p) => p.qty.trim() !== ""),
-  })).filter((d) => d.prepItems.length > 0);
-
-  const usedCategories = CATEGORIES.filter((cat) => dishesWithQty.some((d) => d.category === cat));
+  const allDishes = event.dishes;
+  const totalPrepItems = allDishes.reduce((sum, d) => sum + d.prepItems.length, 0);
+  const usedCategories = CATEGORIES.filter((cat) => allDishes.some((d) => d.category === cat));
 
   useEffect(() => {
     document.body.classList.add("prep-sheet-open");
@@ -239,158 +235,225 @@ function PrepSheetModal({ event, companyName, onClose }: { event: SavedEvent; co
 
   return (
     <div
-      className="prep-sheet-backdrop fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto py-8 px-4"
+      className="prep-sheet-backdrop fixed inset-0 z-50 flex items-start justify-center bg-black/80 backdrop-blur-sm overflow-y-auto py-6 px-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="prep-sheet-content w-full max-w-3xl rounded-xl border border-border bg-card shadow-2xl">
+      <div className="prep-sheet-content w-full max-w-4xl bg-white text-gray-900 shadow-2xl rounded-lg overflow-hidden">
 
-        {/* Header */}
-        <div className="border-b border-border px-6 pt-6 pb-5">
-          <div className="flex items-center justify-between gap-4 mb-4">
-            <div className="flex items-center gap-2">
-              <div className="h-6 w-6 rounded bg-accent flex items-center justify-center flex-shrink-0">
-                <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5" stroke="hsl(222 18% 9%)" strokeWidth={2.5}>
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
-              <span className="font-heading text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+        {/* ── Toolbar (hidden on print) ── */}
+        <div className="no-print flex items-center justify-between gap-3 bg-gray-100 border-b border-gray-200 px-5 py-3">
+          <span className="text-sm font-medium text-gray-500">Prep Sheet Preview</span>
+          <div className="flex items-center gap-2">
+            <button onClick={() => window.print()}
+              className="inline-flex items-center gap-1.5 rounded bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+              <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v5a2 2 0 002 2h1v2a1 1 0 001 1h8a1 1 0 001-1v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a1 1 0 00-1-1H6a1 1 0 00-1 1zm2 0h6v3H7V4zm-1 9a1 1 0 112 0 1 1 0 01-2 0zm2 2v2h4v-2H8z" clipRule="evenodd" />
+              </svg>
+              Print / Save PDF
+            </button>
+            <button onClick={onClose}
+              className="rounded p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-200 transition-colors" aria-label="Close">
+              <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* ══ DOCUMENT BODY ══ */}
+        <div className="px-8 pt-7 pb-8 space-y-5">
+
+          {/* Header row: left = company + event name, right = timestamp + contact */}
+          <div className="ps-doc-header flex items-start justify-between gap-6 pb-5 border-b-2 border-gray-900">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
                 {companyName || "EventOps"} — Prep Sheet
-              </span>
+              </p>
+              <h1 className="font-heading text-4xl font-bold tracking-wide text-gray-900 leading-tight break-words">
+                {event.name}
+              </h1>
+              {event.client && (
+                <p className="mt-1.5 text-sm text-gray-500">
+                  Client: <span className="font-semibold text-gray-800">{event.client}</span>
+                </p>
+              )}
+              {event.notes && (
+                <p className="mt-1 text-sm text-gray-400 italic">{event.notes}</p>
+              )}
             </div>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground">Generated {generatedAt}</span>
-              <button onClick={() => window.print()}
-                className="no-print inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:brightness-110 transition-all">
-                <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
-                  <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v5a2 2 0 002 2h1v2a1 1 0 001 1h8a1 1 0 001-1v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a1 1 0 00-1-1H6a1 1 0 00-1 1zm2 0h6v3H7V4zm-1 9a1 1 0 112 0 1 1 0 01-2 0zm2 2v2h4v-2H8z" clipRule="evenodd" />
-                </svg>
-                Print
-              </button>
-              <button onClick={onClose}
-                className="no-print rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors" aria-label="Close">
-                <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <h1 className="font-heading text-3xl font-semibold tracking-wide text-foreground leading-tight">{event.name}</h1>
-          {event.notes && <p className="mt-1.5 text-sm text-muted-foreground italic">{event.notes}</p>}
-
-          {/* Metadata bar */}
-          <div className="ps-meta-bar mt-4 flex flex-wrap gap-px rounded-lg border border-border overflow-hidden text-sm">
-            {[
-              { label: "Client",          value: event.client || "—" },
-              { label: "Date",            value: event.date ? formatDate(event.date) : "—" },
-              { label: "Start Time",      value: event.startTime ? formatTime(event.startTime) : "—" },
-              { label: "Guest Count",     value: event.guestCount || "—" },
-              { label: "Venue",           value: event.venue || "—" },
-              { label: "Onsite Contact",  value: event.onsiteContact || "—" },
-              { label: "Dishes",          value: String(dishesWithQty.length) },
-            ].map(({ label, value }) => (
-              <div key={label} className="flex-1 min-w-[110px] bg-muted/40 px-3 py-2.5">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">{label}</p>
-                <p className="text-sm font-medium text-foreground">{value}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Allergy warning banner */}
-          {event.allergies && (
-            <div className="ps-allergy-banner mt-4 flex items-start gap-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3">
-              <span className="text-amber-400 mt-0.5"><WarningIcon /></span>
+            <div className="text-right flex-shrink-0 pt-1 space-y-2">
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-amber-400 mb-1">Allergy Alert</p>
-                <p className="text-sm text-foreground leading-relaxed">{event.allergies}</p>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">Generated</p>
+                <p className="text-sm font-semibold text-gray-700">{generatedAt}</p>
               </div>
+              {event.onsiteContact && (
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">Onsite Contact</p>
+                  <p className="text-sm font-semibold text-gray-700">{event.onsiteContact}</p>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </div>
 
-        {/* Items by category */}
-        <div className="px-6 py-6 space-y-7">
-          {dishesWithQty.length === 0 ? (
-            <p className="text-sm text-muted-foreground italic">
-              {event.dishes.length === 0
-                ? "No dishes on this event."
-                : "No prep items have quantities entered. Edit the event and fill in quantities."}
-            </p>
-          ) : (
-            usedCategories.map((cat) => {
-              const catDishes = dishesWithQty.filter((d) => d.category === cat);
-              return (
-                <div key={cat} className="ps-category-block">
-                  <p className="ps-category-label font-heading text-xs font-bold uppercase tracking-widest text-accent pb-1.5 mb-4 border-b border-border">
-                    {cat}
-                  </p>
-                  <div className="space-y-5">
-                    {catDishes.map((dish) => (
-                      <div key={dish.dishId}>
-                        <p className="text-sm font-semibold text-foreground mb-2">{dish.name}</p>
-
-                        {/* Sub Note callout */}
-                        {dish.subNote && (
-                          <div className="ps-subnote mb-2 rounded border-l-4 border-accent bg-accent/10 px-3 py-2">
-                            <p className="text-xs font-bold uppercase tracking-widest text-accent">{dish.subNote}</p>
-                          </div>
-                        )}
-
-                        <div className="rounded-lg border border-border overflow-x-auto">
-                          <table className="w-full text-sm min-w-[520px]">
-                            <thead>
-                              <tr className="bg-muted/60 border-b border-border">
-                                <th className="text-left px-4 py-2 font-semibold text-foreground w-[32%]">Prep Item</th>
-                                <th className="text-right px-4 py-2 font-semibold text-foreground w-[14%]">Qty</th>
-                                <th className="text-left px-4 py-2 font-semibold text-foreground w-[26%]">Location</th>
-                                <th className="text-left px-4 py-2 font-semibold text-foreground">Allergy Note</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border">
-                              {dish.prepItems.map((p) => (
-                                <tr key={p.prepItemId} className="bg-card">
-                                  <td className="px-4 py-2.5 font-medium text-foreground align-top">{p.name}</td>
-                                  <td className="px-4 py-2.5 text-right tabular-nums font-medium text-foreground align-top whitespace-nowrap">{p.qty || "—"}</td>
-                                  <td className="px-4 py-2.5 text-muted-foreground align-top">{p.location || <span className="opacity-40">—</span>}</td>
-                                  <td className="px-4 py-2.5 align-top">
-                                    {p.allergyNote
-                                      ? <span className="inline-flex items-center gap-1 text-xs text-amber-400"><WarningIcon />{p.allergyNote}</span>
-                                      : <span className="text-muted-foreground">—</span>}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        {/* Signature lines */}
-        <div className="ps-signature-block border-t border-border px-6 py-6">
-          <div className="grid grid-cols-2 gap-12">
-            {["Prepared by", "Approved by"].map((label) => (
-              <div key={label}>
-                <div className="h-10" />
-                <div className="ps-sig-line border-t border-foreground/40 pt-2">
-                  <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</p>
-                  <div className="mt-1 h-5" />
-                </div>
+          {/* Meta bar — 5 columns */}
+          <div className="ps-meta-bar grid grid-cols-5 rounded border border-gray-200 overflow-hidden divide-x divide-gray-200">
+            {[
+              { label: "Date",             value: event.date ? formatDate(event.date) : "—" },
+              { label: "Start Time",       value: event.startTime ? formatTime(event.startTime) : "—" },
+              { label: "Guests",           value: event.guestCount || "—" },
+              { label: "Venue",            value: event.venue || "—" },
+              { label: "Total Prep Items", value: String(totalPrepItems) },
+            ].map(({ label, value }) => (
+              <div key={label} className="ps-meta-cell bg-gray-50 px-3 py-2.5">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">{label}</p>
+                <p className="text-sm font-bold text-gray-800 leading-snug">{value}</p>
               </div>
             ))}
           </div>
-        </div>
 
-        <div className="no-print border-t border-border px-6 py-4 flex justify-end">
-          <button onClick={onClose}
-            className="rounded-md border border-border px-6 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors">
-            Close
-          </button>
+          {/* Allergy bar — always full-width, always prominent */}
+          {event.allergies && (
+            <div className="ps-allergy-bar flex items-start gap-3 rounded px-4 py-3" style={{ backgroundColor: "#fde047" }}>
+              <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: "#111" }}>
+                <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+              </svg>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest mb-0.5" style={{ color: "#111" }}>
+                  ⚠ Allergy / Dietary Alert
+                </p>
+                <p className="text-sm font-bold leading-relaxed" style={{ color: "#111" }}>{event.allergies}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Dish blocks */}
+          {allDishes.length === 0 ? (
+            <p className="text-sm text-gray-400 italic py-10 text-center">No dishes on this event.</p>
+          ) : (
+            <div className="space-y-4">
+              {usedCategories.map((cat) =>
+                allDishes
+                  .filter((d) => d.category === cat)
+                  .map((dish) => (
+                    <div key={dish.dishId} className="ps-dish-block rounded overflow-hidden border border-gray-200">
+
+                      {/* Black header bar */}
+                      <div className="ps-dish-header flex items-center justify-between gap-4 px-4 py-2.5" style={{ backgroundColor: "#111111" }}>
+                        <p className="font-heading font-bold uppercase tracking-wider leading-none" style={{ color: "#ffffff" }}>
+                          <span className="font-normal normal-case tracking-normal text-xs mr-2" style={{ color: "#9ca3af" }}>
+                            {cat} —
+                          </span>
+                          {dish.name.toUpperCase()}
+                        </p>
+                        {event.guestCount && (
+                          <p className="text-xs font-semibold whitespace-nowrap flex-shrink-0" style={{ color: "#d1d5db" }}>
+                            {event.guestCount} guests
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Sub Note row */}
+                      {dish.subNote && (
+                        <div className="ps-subnote flex items-center gap-2 px-4 py-2 border-b border-gray-200" style={{ backgroundColor: "#fde047" }}>
+                          <span className="text-xs font-black uppercase tracking-widest" style={{ color: "#111111" }}>
+                            ↳ {dish.subNote}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Prep items table */}
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-gray-200" style={{ backgroundColor: "#f3f4f6" }}>
+                            <th className="text-left px-4 py-2 text-[9px] font-bold uppercase tracking-widest text-gray-500 w-[28%]">Prep Item</th>
+                            <th className="text-right px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-gray-500 w-[11%]">Quantity</th>
+                            <th className="text-center px-2 py-2 text-[9px] font-bold uppercase tracking-widest text-gray-500 w-[8%]">Prepped</th>
+                            <th className="text-center px-2 py-2 text-[9px] font-bold uppercase tracking-widest text-gray-500 w-[8%]">Packed</th>
+                            <th className="text-left px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-gray-500 w-[22%]">Item Location</th>
+                            <th className="text-left px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-gray-500">Allergy</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dish.prepItems.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="px-4 py-3 text-xs text-gray-400 italic">
+                                No prep items on this dish.
+                              </td>
+                            </tr>
+                          ) : (
+                            dish.prepItems.map((p, i) => (
+                              <tr
+                                key={p.prepItemId}
+                                className="border-b border-gray-100"
+                                style={{ backgroundColor: i % 2 === 0 ? "#ffffff" : "#f9fafb" }}
+                              >
+                                <td className="px-4 py-2.5 font-semibold text-gray-900 align-middle">{p.name}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums font-medium text-gray-700 align-middle whitespace-nowrap">
+                                  {p.qty || <span className="text-gray-300">—</span>}
+                                </td>
+                                <td className="px-2 py-2.5 text-center align-middle">
+                                  <span className="ps-checkbox inline-block" style={{
+                                    width: "14px", height: "14px",
+                                    border: "1.5px solid #374151",
+                                    borderRadius: "2px",
+                                    display: "inline-block",
+                                    verticalAlign: "middle",
+                                  }} />
+                                </td>
+                                <td className="px-2 py-2.5 text-center align-middle">
+                                  <span className="ps-checkbox inline-block" style={{
+                                    width: "14px", height: "14px",
+                                    border: "1.5px solid #374151",
+                                    borderRadius: "2px",
+                                    display: "inline-block",
+                                    verticalAlign: "middle",
+                                  }} />
+                                </td>
+                                <td className="px-3 py-2.5 align-middle text-xs text-gray-600">
+                                  {p.location || <span className="text-gray-300">—</span>}
+                                </td>
+                                <td className="px-3 py-2.5 align-middle">
+                                  {p.allergyNote ? (
+                                    <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-bold" style={{ backgroundColor: "#fde047", color: "#78350f" }}>
+                                      {p.allergyNote}
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-300">—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))
+              )}
+            </div>
+          )}
+
+          {/* Footer */}
+          <div className="ps-signature-block pt-6 border-t-2 border-gray-200">
+            <div className="flex items-end justify-between gap-8">
+              {/* Left: signature lines */}
+              <div className="flex gap-12">
+                {["Prepared by", "Approved by"].map((label) => (
+                  <div key={label} className="w-44">
+                    <div className="h-10" />
+                    <div className="ps-sig-line border-t-2 border-gray-700 pt-1.5">
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-gray-500">{label}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Right: event name + timestamp */}
+              <div className="text-right pb-0.5">
+                <p className="text-xs font-bold text-gray-700">{event.name}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">{generatedAt}</p>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>

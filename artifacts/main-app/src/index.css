@@ -181,7 +181,12 @@
 
 /* ── Print styles ────────────────────────────────────────────────────────── */
 @media print {
-  /* White page */
+  /* ── Page setup ── */
+  @page {
+    margin: 0.6in 0.65in;
+    size: letter;
+  }
+
   body.prep-sheet-open {
     background: #ffffff !important;
     color: #111111 !important;
@@ -193,7 +198,7 @@
     display: none !important;
   }
 
-  /* Strip the fixed overlay so content flows normally */
+  /* Strip the overlay so the document flows normally */
   body.prep-sheet-open .prep-sheet-backdrop {
     position: static !important;
     background: transparent !important;
@@ -205,7 +210,7 @@
     width: 100% !important;
   }
 
-  /* Full-width white content */
+  /* Full-bleed white document */
   body.prep-sheet-open .prep-sheet-content {
     border: none !important;
     box-shadow: none !important;
@@ -215,88 +220,83 @@
     background: #ffffff !important;
     color: #111111 !important;
     margin: 0 !important;
+    overflow: visible !important;
   }
 
-  /* Force all text and borders dark */
-  body.prep-sheet-open .prep-sheet-content,
-  body.prep-sheet-open .prep-sheet-content * {
-    color: #111111 !important;
-  }
-
-  body.prep-sheet-open .prep-sheet-content table,
-  body.prep-sheet-open .prep-sheet-content th,
-  body.prep-sheet-open .prep-sheet-content td,
-  body.prep-sheet-open .prep-sheet-content div,
-  body.prep-sheet-open .prep-sheet-content p,
-  body.prep-sheet-open .prep-sheet-content span {
-    border-color: #d1d5db !important;
-  }
-
-  /* Meta bar tiles */
-  body.prep-sheet-open .ps-meta-bar {
-    background-color: #f3f4f6 !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  body.prep-sheet-open .ps-meta-bar > div {
-    background-color: #f3f4f6 !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  /* Table header rows */
-  body.prep-sheet-open .prep-sheet-content thead tr,
-  body.prep-sheet-open .prep-sheet-content thead {
-    background-color: #f3f4f6 !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  body.prep-sheet-open .prep-sheet-content th {
-    background-color: #f3f4f6 !important;
-  }
-
-  /* Allergy banner */
-  body.prep-sheet-open .ps-allergy-banner {
-    background-color: #fffbeb !important;
-    border-color: #d97706 !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  body.prep-sheet-open .ps-allergy-banner * {
-    color: #92400e !important;
-  }
-
-  /* Category label border */
-  body.prep-sheet-open .ps-category-label {
-    border-bottom-color: #374151 !important;
-    color: #374151 !important;
-  }
-
-  /* Sub Note callout */
-  body.prep-sheet-open .ps-subnote {
-    background-color: #f0fdf4 !important;
-    border-left-color: #374151 !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  body.prep-sheet-open .ps-subnote * {
-    color: #374151 !important;
-  }
-
-  /* Signature lines */
-  body.prep-sheet-open .ps-sig-line {
-    border-top-color: #374151 !important;
-  }
-
-  /* Hide all buttons/chrome */
+  /* Hide toolbar and any no-print chrome */
   .no-print {
     display: none !important;
   }
 
-  /* Avoid splitting categories across pages */
-  .ps-category-block {
+  /* ── Meta bar: light gray cells ── */
+  .ps-meta-bar,
+  .ps-meta-cell {
+    background-color: #f3f4f6 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ── Table header rows: light gray ── */
+  body.prep-sheet-open .prep-sheet-content thead tr {
+    background-color: #f3f4f6 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ── Alternating rows ── */
+  body.prep-sheet-open .prep-sheet-content tbody tr:nth-child(even) {
+    background-color: #f9fafb !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ── Allergy bar: yellow ── */
+  .ps-allergy-bar {
+    background-color: #fde047 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .ps-allergy-bar,
+  .ps-allergy-bar * {
+    color: #111111 !important;
+  }
+
+  /* ── Dish header bar: black ── */
+  .ps-dish-header {
+    background-color: #111111 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .ps-dish-header * {
+    color: #ffffff !important;
+  }
+
+  /* ── Sub Note: yellow ── */
+  .ps-subnote {
+    background-color: #fde047 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .ps-subnote,
+  .ps-subnote * {
+    color: #111111 !important;
+  }
+
+  /* ── Allergy badge: yellow ── */
+  body.prep-sheet-open .prep-sheet-content tbody td span[style] {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ── Checkbox squares ── */
+  .ps-checkbox {
+    border-color: #374151 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ── Page break control ── */
+  .ps-dish-block {
     page-break-inside: avoid;
     break-inside: avoid;
   }
