@@ -46,92 +46,316 @@ function EventsTab() {
   );
 }
 
-function BuildEventTab() {
-  return (
-    <div className="space-y-6 max-w-2xl">
-      <h2 className="font-heading text-3xl font-semibold tracking-wide text-foreground">
-        Build Event
-      </h2>
-      <p className="text-muted-foreground leading-relaxed">
-        Create a new event by filling in the details below. All fields marked with * are required.
-      </p>
-      <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground" htmlFor="event-name">
-            Event Name *
-          </label>
-          <input
-            id="event-name"
-            type="text"
-            placeholder="e.g. Summer Gala 2026"
-            className="w-full rounded-md border border-input bg-card px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent transition"
-          />
-        </div>
+interface EventLineItem {
+  menuItemId: string;
+  name: string;
+  category: Category;
+  unit: string;
+  quantity: string;
+}
 
-        <div className="grid gap-5 sm:grid-cols-2">
+interface SavedEvent {
+  id: string;
+  name: string;
+  client: string;
+  date: string;
+  guestCount: string;
+  notes: string;
+  lineItems: EventLineItem[];
+  savedAt: string;
+}
+
+const EVENTS_STORAGE_KEY = "build-events";
+
+function loadEvents(): SavedEvent[] {
+  try {
+    const raw = localStorage.getItem(EVENTS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function BuildEventTab() {
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [details, setDetails] = useState({ name: "", client: "", date: "", guestCount: "", notes: "" });
+  const [lineItems, setLineItems] = useState<EventLineItem[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<Category | "">("");
+  const [selectedItemId, setSelectedItemId] = useState("");
+  const [saveMsg, setSaveMsg] = useState<"saved" | "error" | null>(null);
+  const [formError, setFormError] = useState("");
+
+  useEffect(() => {
+    setMenuItems(loadItems());
+  }, []);
+
+  const categoriesWithItems = CATEGORIES.filter((cat) =>
+    menuItems.some((m) => m.category === cat)
+  );
+
+  const itemsForCategory = selectedCategory
+    ? menuItems.filter((m) => m.category === selectedCategory)
+    : [];
+
+  function handleCategoryChange(cat: Category | "") {
+    setSelectedCategory(cat);
+    setSelectedItemId("");
+  }
+
+  function handleAddItem() {
+    if (!selectedCategory || !selectedItemId) return;
+    const menuItem = menuItems.find((m) => m.id === selectedItemId);
+    if (!menuItem) return;
+    if (lineItems.some((li) => li.menuItemId === selectedItemId)) return;
+    setLineItems((prev) => [
+      ...prev,
+      { menuItemId: menuItem.id, name: menuItem.name, category: menuItem.category, unit: menuItem.unit, quantity: "" },
+    ]);
+    setSelectedItemId("");
+  }
+
+  function handleQuantityChange(menuItemId: string, qty: string) {
+    setLineItems((prev) => prev.map((li) => li.menuItemId === menuItemId ? { ...li, quantity: qty } : li));
+  }
+
+  function handleRemoveItem(menuItemId: string) {
+    setLineItems((prev) => prev.filter((li) => li.menuItemId !== menuItemId));
+  }
+
+  function handleSave() {
+    if (!details.name.trim()) { setFormError("Event Name is required."); return; }
+    setFormError("");
+    const event: SavedEvent = {
+      id: crypto.randomUUID(),
+      ...details,
+      name: details.name.trim(),
+      client: details.client.trim(),
+      lineItems,
+      savedAt: new Date().toISOString(),
+    };
+    const existing = loadEvents();
+    localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify([...existing, event]));
+    setSaveMsg("saved");
+    setTimeout(() => setSaveMsg(null), 3000);
+  }
+
+  function handleReset() {
+    setDetails({ name: "", client: "", date: "", guestCount: "", notes: "" });
+    setLineItems([]);
+    setSelectedCategory("");
+    setSelectedItemId("");
+    setFormError("");
+    setSaveMsg(null);
+  }
+
+  const lineItemsByCategory = CATEGORIES.filter((cat) =>
+    lineItems.some((li) => li.category === cat)
+  );
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h2 className="font-heading text-3xl font-semibold tracking-wide text-foreground">Build Event</h2>
+        <p className="mt-1 text-muted-foreground">Fill in event details, then add menu items with quantities.</p>
+      </div>
+
+      {/* Event Details */}
+      <div className="rounded-lg border border-border bg-card p-6 space-y-4">
+        <h3 className="font-heading text-lg font-semibold text-foreground">Event Details</h3>
+        {formError && <p className="text-sm text-destructive">{formError}</p>}
+        <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground" htmlFor="event-date">
-              Date *
-            </label>
+            <label className="text-sm font-medium text-foreground" htmlFor="ev-name">Event Name *</label>
             <input
-              id="event-date"
-              type="date"
-              className="w-full rounded-md border border-input bg-card px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition"
+              id="ev-name"
+              type="text"
+              value={details.name}
+              onChange={(e) => setDetails((d) => ({ ...d, name: e.target.value }))}
+              placeholder="e.g. Spring Gala 2026"
+              className={inputClass}
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground" htmlFor="event-guests">
-              Guest Count *
-            </label>
+            <label className="text-sm font-medium text-foreground" htmlFor="ev-client">Client</label>
             <input
-              id="event-guests"
+              id="ev-client"
+              type="text"
+              value={details.client}
+              onChange={(e) => setDetails((d) => ({ ...d, client: e.target.value }))}
+              placeholder="e.g. Acme Corp"
+              className={inputClass}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground" htmlFor="ev-date">Date</label>
+            <input
+              id="ev-date"
+              type="date"
+              value={details.date}
+              onChange={(e) => setDetails((d) => ({ ...d, date: e.target.value }))}
+              className={inputClass}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground" htmlFor="ev-guests">Guest Count</label>
+            <input
+              id="ev-guests"
               type="number"
               min={1}
+              value={details.guestCount}
+              onChange={(e) => setDetails((d) => ({ ...d, guestCount: e.target.value }))}
               placeholder="e.g. 100"
-              className="w-full rounded-md border border-input bg-card px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent transition"
+              className={inputClass}
             />
           </div>
         </div>
-
         <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground" htmlFor="event-venue">
-            Venue
-          </label>
-          <input
-            id="event-venue"
-            type="text"
-            placeholder="e.g. Grand Ballroom, City Hotel"
-            className="w-full rounded-md border border-input bg-card px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent transition"
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground" htmlFor="event-notes">
-            Notes
-          </label>
+          <label className="text-sm font-medium text-foreground" htmlFor="ev-notes">Notes</label>
           <textarea
-            id="event-notes"
-            rows={4}
-            placeholder="Special requirements, dietary restrictions, themes..."
-            className="w-full rounded-md border border-input bg-card px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent transition resize-none"
+            id="ev-notes"
+            rows={3}
+            value={details.notes}
+            onChange={(e) => setDetails((d) => ({ ...d, notes: e.target.value }))}
+            placeholder="Special requirements, themes, dietary notes..."
+            className={`${inputClass} resize-none`}
           />
         </div>
+      </div>
 
-        <div className="flex gap-3 pt-2">
-          <button
-            type="submit"
-            className="rounded-md bg-accent px-6 py-2.5 text-sm font-semibold text-accent-foreground hover:brightness-110 active:brightness-95 transition-all"
-          >
-            Create Event
-          </button>
-          <button
-            type="button"
-            className="rounded-md border border-border px-6 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
-          >
-            Cancel
-          </button>
+      {/* Two-panel item builder */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Left: selector */}
+        <div className="rounded-lg border border-border bg-card p-6 space-y-4">
+          <h3 className="font-heading text-lg font-semibold text-foreground">Add Menu Items</h3>
+          {categoriesWithItems.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No items in the Menu Database yet. Add some items there first.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Category</label>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => handleCategoryChange(e.target.value as Category | "")}
+                  className={inputClass}
+                >
+                  <option value="">— Select a category —</option>
+                  {categoriesWithItems.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Item</label>
+                <select
+                  value={selectedItemId}
+                  onChange={(e) => setSelectedItemId(e.target.value)}
+                  disabled={!selectedCategory}
+                  className={`${inputClass} disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  <option value="">— Select an item —</option>
+                  {itemsForCategory.map((item) => (
+                    <option
+                      key={item.id}
+                      value={item.id}
+                      disabled={lineItems.some((li) => li.menuItemId === item.id)}
+                    >
+                      {item.name}{lineItems.some((li) => li.menuItemId === item.id) ? " (added)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddItem}
+                disabled={!selectedCategory || !selectedItemId}
+                className="w-full rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground hover:brightness-110 active:brightness-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100"
+              >
+                + Add to Event
+              </button>
+            </div>
+          )}
         </div>
-      </form>
+
+        {/* Right: line items list */}
+        <div className="rounded-lg border border-border bg-card p-6 space-y-4">
+          <h3 className="font-heading text-lg font-semibold text-foreground">
+            Event Items
+            {lineItems.length > 0 && (
+              <span className="ml-2 text-sm font-normal text-muted-foreground">({lineItems.length})</span>
+            )}
+          </h3>
+          {lineItems.length === 0 ? (
+            <div className="rounded-md border border-dashed border-border py-10 text-center">
+              <p className="text-sm text-muted-foreground">No items added yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {lineItemsByCategory.map((cat) => {
+                const catItems = lineItems.filter((li) => li.category === cat);
+                return (
+                  <div key={cat}>
+                    <p className="text-xs font-semibold text-accent uppercase tracking-widest mb-2">{cat}</p>
+                    <div className="space-y-2">
+                      {catItems.map((li) => (
+                        <div key={li.menuItemId} className="flex items-center gap-3 rounded-md border border-border bg-background px-3 py-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{li.name}</p>
+                            <p className="text-xs text-muted-foreground">{li.unit}</p>
+                          </div>
+                          <input
+                            type="number"
+                            min={0}
+                            step="any"
+                            value={li.quantity}
+                            onChange={(e) => handleQuantityChange(li.menuItemId, e.target.value)}
+                            placeholder="Qty"
+                            className="w-20 rounded-md border border-input bg-card px-2 py-1.5 text-sm text-foreground text-right placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent transition"
+                          />
+                          <button
+                            onClick={() => handleRemoveItem(li.menuItemId)}
+                            className="text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
+                            aria-label="Remove item"
+                          >
+                            <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Save / Reset */}
+      <div className="flex items-center gap-4 pb-4">
+        <button
+          type="button"
+          onClick={handleSave}
+          className="rounded-md bg-accent px-8 py-2.5 text-sm font-semibold text-accent-foreground hover:brightness-110 active:brightness-95 transition-all"
+        >
+          Save Event
+        </button>
+        <button
+          type="button"
+          onClick={handleReset}
+          className="rounded-md border border-border px-6 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+        >
+          Reset
+        </button>
+        {saveMsg === "saved" && (
+          <span className="text-sm text-accent font-medium">Event saved!</span>
+        )}
+        {saveMsg === "error" && (
+          <span className="text-sm text-destructive font-medium">Failed to save.</span>
+        )}
+      </div>
     </div>
   );
 }
