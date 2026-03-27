@@ -274,6 +274,17 @@
     color: #374151 !important;
   }
 
+  /* Sub Note callout */
+  body.prep-sheet-open .ps-subnote {
+    background-color: #f0fdf4 !important;
+    border-left-color: #374151 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  body.prep-sheet-open .ps-subnote * {
+    color: #374151 !important;
+  }
+
   /* Signature lines */
   body.prep-sheet-open .ps-sig-line {
     border-top-color: #374151 !important;

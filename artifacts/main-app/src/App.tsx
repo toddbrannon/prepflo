@@ -39,6 +39,7 @@ interface EventPrepItem {
   prepItemId: string;
   name: string;
   qty: string;
+  location: string;
   allergyNote: string;
 }
 
@@ -46,6 +47,7 @@ interface EventDish {
   dishId: string;
   name: string;
   category: Category;
+  subNote: string;
   prepItems: EventPrepItem[];
 }
 
@@ -67,7 +69,7 @@ interface SavedEvent {
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
 const MENU_KEY    = "pf_menu";
-const EVENTS_KEY  = "build-events";
+const EVENTS_KEY  = "pf_events";
 const COMPANY_KEY = "eventops-company-name";
 
 function loadCompanyName(): string { return localStorage.getItem(COMPANY_KEY) ?? ""; }
@@ -326,12 +328,21 @@ function PrepSheetModal({ event, companyName, onClose }: { event: SavedEvent; co
                     {catDishes.map((dish) => (
                       <div key={dish.dishId}>
                         <p className="text-sm font-semibold text-foreground mb-2">{dish.name}</p>
+
+                        {/* Sub Note callout */}
+                        {dish.subNote && (
+                          <div className="ps-subnote mb-2 rounded border-l-4 border-accent bg-accent/10 px-3 py-2">
+                            <p className="text-xs font-bold uppercase tracking-widest text-accent">{dish.subNote}</p>
+                          </div>
+                        )}
+
                         <div className="rounded-lg border border-border overflow-x-auto">
-                          <table className="w-full text-sm min-w-[440px]">
+                          <table className="w-full text-sm min-w-[520px]">
                             <thead>
                               <tr className="bg-muted/60 border-b border-border">
-                                <th className="text-left px-4 py-2 font-semibold text-foreground w-[40%]">Prep Item</th>
-                                <th className="text-right px-4 py-2 font-semibold text-foreground w-[18%]">Qty</th>
+                                <th className="text-left px-4 py-2 font-semibold text-foreground w-[32%]">Prep Item</th>
+                                <th className="text-right px-4 py-2 font-semibold text-foreground w-[14%]">Qty</th>
+                                <th className="text-left px-4 py-2 font-semibold text-foreground w-[26%]">Location</th>
                                 <th className="text-left px-4 py-2 font-semibold text-foreground">Allergy Note</th>
                               </tr>
                             </thead>
@@ -339,7 +350,8 @@ function PrepSheetModal({ event, companyName, onClose }: { event: SavedEvent; co
                               {dish.prepItems.map((p) => (
                                 <tr key={p.prepItemId} className="bg-card">
                                   <td className="px-4 py-2.5 font-medium text-foreground align-top">{p.name}</td>
-                                  <td className="px-4 py-2.5 text-right tabular-nums font-medium text-foreground align-top">{p.qty}</td>
+                                  <td className="px-4 py-2.5 text-right tabular-nums font-medium text-foreground align-top whitespace-nowrap">{p.qty || "—"}</td>
+                                  <td className="px-4 py-2.5 text-muted-foreground align-top">{p.location || <span className="opacity-40">—</span>}</td>
                                   <td className="px-4 py-2.5 align-top">
                                     {p.allergyNote
                                       ? <span className="inline-flex items-center gap-1 text-xs text-amber-400"><WarningIcon />{p.allergyNote}</span>
@@ -514,7 +526,12 @@ function BuildEventTab({ editingEvent, onClearEdit }: {
         allergies: editingEvent.allergies ?? "",
         notes: editingEvent.notes,
       });
-      setEventDishes(editingEvent.dishes);
+      // Hydrate with safe defaults for fields added in newer versions
+      setEventDishes(editingEvent.dishes.map((d) => ({
+        ...d,
+        subNote: d.subNote ?? "",
+        prepItems: d.prepItems.map((p) => ({ ...p, location: p.location ?? "", allergyNote: p.allergyNote ?? "" })),
+      })));
       setSelectedCategory("");
       setSelectedDishId("");
       setFormError("");
@@ -535,10 +552,12 @@ function BuildEventTab({ editingEvent, onClearEdit }: {
         dishId: dish.id,
         name: dish.name,
         category: dish.category,
+        subNote: "",
         prepItems: dish.prepItems.map((p) => ({
           prepItemId: p.id,
           name: p.name,
           qty: p.defaultQty,
+          location: "",
           allergyNote: p.allergyNote,
         })),
       },
@@ -546,14 +565,18 @@ function BuildEventTab({ editingEvent, onClearEdit }: {
     setSelectedDishId("");
   }
 
-  function handlePrepItemQtyChange(dishId: string, prepItemId: string, qty: string) {
+  function handlePrepItemFieldChange(dishId: string, prepItemId: string, field: keyof EventPrepItem, value: string) {
     setEventDishes((prev) =>
       prev.map((d) =>
         d.dishId === dishId
-          ? { ...d, prepItems: d.prepItems.map((p) => p.prepItemId === prepItemId ? { ...p, qty } : p) }
+          ? { ...d, prepItems: d.prepItems.map((p) => p.prepItemId === prepItemId ? { ...p, [field]: value } : p) }
           : d
       )
     );
+  }
+
+  function handleDishSubNoteChange(dishId: string, subNote: string) {
+    setEventDishes((prev) => prev.map((d) => d.dishId === dishId ? { ...d, subNote } : d));
   }
 
   function handleRemoveDish(dishId: string) {
@@ -687,109 +710,148 @@ function BuildEventTab({ editingEvent, onClearEdit }: {
         </div>
       </div>
 
-      {/* Two-panel dish builder */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Left: dish selector */}
-        <div className="rounded-lg border border-border bg-card p-6 space-y-4">
-          <h3 className="font-heading text-lg font-semibold text-foreground">Add Dishes</h3>
-          {categoriesWithDishes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No dishes in the Menu Database yet. Add some there first.</p>
-          ) : (
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">Category</label>
-                <select value={selectedCategory}
-                  onChange={(e) => { setSelectedCategory(e.target.value as Category | ""); setSelectedDishId(""); }}
-                  className={inputClass}>
-                  <option value="">— Select a category —</option>
-                  {categoriesWithDishes.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">Dish</label>
-                <select value={selectedDishId}
-                  onChange={(e) => setSelectedDishId(e.target.value)}
-                  disabled={!selectedCategory}
-                  className={`${inputClass} disabled:opacity-50 disabled:cursor-not-allowed`}>
-                  <option value="">— Select a dish —</option>
-                  {dishesForCategory.map((dish) => (
-                    <option key={dish.id} value={dish.id}
-                      disabled={eventDishes.some((ed) => ed.dishId === dish.id)}>
-                      {dish.name}{eventDishes.some((ed) => ed.dishId === dish.id) ? " (added)" : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
+      {/* Dish selector */}
+      <div className="rounded-lg border border-border bg-card p-5">
+        <h3 className="font-heading text-lg font-semibold text-foreground mb-4">Add Dishes</h3>
+        {categoriesWithDishes.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No dishes in the Menu Database yet. Add some there first.</p>
+        ) : (
+          <div className="flex flex-wrap gap-3 items-end">
+            <div className="space-y-1 flex-1 min-w-[160px]">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Category</label>
+              <select value={selectedCategory}
+                onChange={(e) => { setSelectedCategory(e.target.value as Category | ""); setSelectedDishId(""); }}
+                className={inputClass}>
+                <option value="">— Category —</option>
+                {categoriesWithDishes.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1 flex-1 min-w-[200px]">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dish</label>
+              <select value={selectedDishId}
+                onChange={(e) => setSelectedDishId(e.target.value)}
+                disabled={!selectedCategory}
+                className={`${inputClass} disabled:opacity-50 disabled:cursor-not-allowed`}>
+                <option value="">— Select dish —</option>
+                {dishesForCategory.map((dish) => (
+                  <option key={dish.id} value={dish.id}
+                    disabled={eventDishes.some((ed) => ed.dishId === dish.id)}>
+                    {dish.name}{eventDishes.some((ed) => ed.dishId === dish.id) ? " (added)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="pb-0.5">
               <button type="button" onClick={handleAddDish}
                 disabled={!selectedCategory || !selectedDishId}
-                className="w-full rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground hover:brightness-110 active:brightness-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100">
-                + Add Dish to Event
+                className="rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground hover:brightness-110 active:brightness-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100 whitespace-nowrap">
+                + Add Dish
               </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+      </div>
 
-        {/* Right: event dishes */}
-        <div className="rounded-lg border border-border bg-card p-6 space-y-4">
-          <h3 className="font-heading text-lg font-semibold text-foreground">
-            Event Dishes
-            {eventDishes.length > 0 && (
-              <span className="ml-2 text-sm font-normal text-muted-foreground">({eventDishes.length})</span>
-            )}
-          </h3>
-          {eventDishes.length === 0 ? (
-            <div className="rounded-md border border-dashed border-border py-10 text-center">
-              <p className="text-sm text-muted-foreground">No dishes added yet.</p>
-            </div>
-          ) : (
-            <div className="space-y-5">
-              {dishesByCategory.map((cat) => {
-                const catDishes = eventDishes.filter((d) => d.category === cat);
-                return (
-                  <div key={cat}>
-                    <p className="text-xs font-semibold text-accent uppercase tracking-widest mb-2">{cat}</p>
-                    <div className="space-y-3">
-                      {catDishes.map((dish) => (
-                        <div key={dish.dishId} className="rounded-md border border-border bg-background overflow-hidden">
-                          {/* Dish header */}
-                          <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
-                            <p className="text-sm font-semibold text-foreground">{dish.name}</p>
-                            <button onClick={() => handleRemoveDish(dish.dishId)}
-                              className="text-muted-foreground hover:text-destructive transition-colors ml-2 flex-shrink-0"
-                              aria-label="Remove dish">
-                              <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                              </svg>
-                            </button>
-                          </div>
-                          {/* Prep items */}
-                          <div className="divide-y divide-border">
-                            {dish.prepItems.map((p) => (
-                              <div key={p.prepItemId} className="flex items-center gap-2 px-3 py-2">
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-medium text-foreground truncate">{p.name}</p>
-                                  {p.allergyNote && (
-                                    <p className="text-[10px] text-amber-400 flex items-center gap-0.5 mt-0.5">
-                                      <WarningIcon /> {p.allergyNote}
-                                    </p>
-                                  )}
-                                </div>
-                                <input type="text" value={p.qty}
-                                  onChange={(e) => handlePrepItemQtyChange(dish.dishId, p.prepItemId, e.target.value)}
-                                  placeholder="Qty"
-                                  className="w-24 rounded-md border border-input bg-card px-2 py-1 text-xs text-foreground text-right placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent transition" />
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+      {/* Event dish list (full width) */}
+      <div className="space-y-4">
+        <h3 className="font-heading text-lg font-semibold text-foreground">
+          Event Dishes
+          {eventDishes.length > 0 && (
+            <span className="ml-2 text-sm font-normal text-muted-foreground">({eventDishes.length})</span>
           )}
-        </div>
+        </h3>
+
+        {eventDishes.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border bg-card/50 py-12 text-center">
+            <p className="text-sm text-muted-foreground">No dishes added yet. Select a category and dish above.</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {dishesByCategory.map((cat) => {
+              const catDishes = eventDishes.filter((d) => d.category === cat);
+              return (
+                <div key={cat}>
+                  <p className="text-xs font-bold text-accent uppercase tracking-widest mb-3">{cat}</p>
+                  <div className="space-y-4">
+                    {catDishes.map((dish) => (
+                      <div key={dish.dishId} className="rounded-lg border border-border bg-card overflow-hidden">
+
+                        {/* Dish header */}
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/20">
+                          <p className="font-heading text-base font-semibold text-foreground">{dish.name}</p>
+                          <button onClick={() => handleRemoveDish(dish.dishId)}
+                            className="text-muted-foreground hover:text-destructive transition-colors ml-3 flex-shrink-0 text-xs">
+                            Remove
+                          </button>
+                        </div>
+
+                        {/* Sub Note */}
+                        <div className="px-4 py-2 border-b border-border bg-muted/10 flex items-center gap-2">
+                          <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap flex-shrink-0">
+                            Sub Note
+                          </label>
+                          <input
+                            type="text"
+                            value={dish.subNote}
+                            onChange={(e) => handleDishSubNoteChange(dish.dishId, e.target.value)}
+                            placeholder="e.g. SUB SWEET POTATO ROUND"
+                            className="flex-1 rounded border border-transparent bg-transparent px-2 py-1 text-sm font-medium text-accent placeholder:text-muted-foreground/50 placeholder:font-normal focus:border-accent focus:bg-card focus:outline-none transition-colors uppercase"
+                          />
+                        </div>
+
+                        {/* Prep items table */}
+                        {dish.prepItems.length > 0 && (
+                          <div className="overflow-x-auto">
+                            <table className="w-full min-w-[560px]">
+                              <thead>
+                                <tr className="border-b border-border">
+                                  <th className="text-left px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground w-[30%]">Prep Item</th>
+                                  <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground w-[16%]">Qty</th>
+                                  <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground w-[26%]">Location</th>
+                                  <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Allergy Note</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border">
+                                {dish.prepItems.map((p) => (
+                                  <tr key={p.prepItemId} className="hover:bg-secondary/10 transition-colors">
+                                    <td className="px-4 py-2 text-sm font-medium text-foreground">{p.name}</td>
+                                    <td className="px-3 py-1.5">
+                                      <input type="text" value={p.qty}
+                                        onChange={(e) => handlePrepItemFieldChange(dish.dishId, p.prepItemId, "qty", e.target.value)}
+                                        placeholder="e.g. 10 lbs"
+                                        className="w-full rounded border border-input bg-background px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent transition" />
+                                    </td>
+                                    <td className="px-3 py-1.5">
+                                      <input type="text" value={p.location}
+                                        onChange={(e) => handlePrepItemFieldChange(dish.dishId, p.prepItemId, "location", e.target.value)}
+                                        placeholder="e.g. walk-in shelf 2"
+                                        className="w-full rounded border border-input bg-background px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent transition" />
+                                    </td>
+                                    <td className="px-3 py-1.5">
+                                      <input type="text" value={p.allergyNote}
+                                        onChange={(e) => handlePrepItemFieldChange(dish.dishId, p.prepItemId, "allergyNote", e.target.value)}
+                                        placeholder="e.g. Dairy"
+                                        className={`w-full rounded border px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 transition ${p.allergyNote ? "border-amber-500/60 bg-amber-500/5 focus:ring-amber-500/50" : "border-input bg-background focus:ring-accent"}`} />
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+
+                        {dish.prepItems.length === 0 && (
+                          <p className="px-4 py-3 text-xs text-muted-foreground italic">No prep items on this dish.</p>
+                        )}
+
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Save / Reset */}
