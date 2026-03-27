@@ -112,7 +112,9 @@ function formatDate(dateStr: string) {
 // ─── Prep Sheet Modal ─────────────────────────────────────────────────────────
 
 function PrepSheetModal({ event, companyName, onClose }: { event: SavedEvent; companyName: string; onClose: () => void }) {
-  const usedCategories = CATEGORIES.filter((cat) => event.lineItems.some((li) => li.category === cat));
+  // Only include items that have a quantity entered
+  const itemsWithQty = event.lineItems.filter((li) => li.quantity.trim() !== "");
+  const usedCategories = CATEGORIES.filter((cat) => itemsWithQty.some((li) => li.category === cat));
   const generatedAt = new Date().toLocaleString("en-US", {
     month: "short", day: "numeric", year: "numeric",
     hour: "numeric", minute: "2-digit", hour12: true,
@@ -184,7 +186,7 @@ function PrepSheetModal({ event, companyName, onClose }: { event: SavedEvent; co
               { label: "Client", value: event.client || "—" },
               { label: "Date", value: event.date ? formatDate(event.date) : "—" },
               { label: "Guest Count", value: event.guestCount || "—" },
-              { label: "Total Items", value: String(event.lineItems.length) },
+              { label: "Total Items", value: String(itemsWithQty.length) },
             ].map(({ label, value }) => (
               <div key={label} className="flex-1 min-w-[120px] bg-muted/40 px-4 py-3">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">{label}</p>
@@ -196,18 +198,22 @@ function PrepSheetModal({ event, companyName, onClose }: { event: SavedEvent; co
 
         {/* ── Items by category ── */}
         <div className="px-6 py-6 space-y-7">
-          {event.lineItems.length === 0 ? (
-            <p className="text-sm text-muted-foreground italic">No items on this event.</p>
+          {itemsWithQty.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">
+              {event.lineItems.length === 0
+                ? "No items on this event."
+                : "No items have quantities entered. Go back to Build Event and add quantities."}
+            </p>
           ) : (
             usedCategories.map((cat) => {
-              const catItems = event.lineItems.filter((li) => li.category === cat);
+              const catItems = itemsWithQty.filter((li) => li.category === cat);
               return (
                 <div key={cat} className="ps-category-block">
                   <p className="ps-category-label font-heading text-xs font-bold uppercase tracking-widest text-accent pb-1.5 mb-3 border-b border-border">
                     {cat}
                   </p>
-                  <div className="rounded-lg border border-border overflow-hidden">
-                    <table className="w-full text-sm">
+                  <div className="rounded-lg border border-border overflow-x-auto">
+                    <table className="w-full text-sm min-w-[500px]">
                       <thead>
                         <tr className="bg-muted/60 border-b border-border">
                           <th className="text-left px-4 py-2.5 font-semibold text-foreground w-[26%]">Item Name</th>
@@ -756,8 +762,8 @@ function MenuDatabaseTab() {
           {usedCategories.map((category) => (
             <div key={category}>
               <h3 className="font-heading text-sm font-semibold text-accent uppercase tracking-widest mb-2">{category}</h3>
-              <div className="rounded-lg border border-border overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="rounded-lg border border-border overflow-x-auto">
+                <table className="w-full text-sm min-w-[560px]">
                   <thead>
                     <tr className="bg-muted/60 border-b border-border">
                       <th className="text-left px-4 py-2.5 font-semibold text-foreground w-[30%]">Item Name</th>
@@ -860,16 +866,21 @@ function App() {
 
             <div className="flex items-center gap-1">
               {/* Nav tabs */}
-              <nav className="flex items-center gap-1 mr-2">
+              <nav className="flex items-center gap-0.5 sm:gap-1 mr-1 sm:mr-2">
                 {tabs.map((tab) => (
                   <button key={tab.id} onClick={() => handleTabChange(tab.id)}
                     className={[
-                      "relative px-4 py-2 rounded-md text-sm font-medium transition-all",
+                      "relative px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-all whitespace-nowrap",
                       activeTab === tab.id
                         ? "text-accent-foreground bg-accent"
                         : "text-muted-foreground hover:text-foreground hover:bg-secondary",
                     ].join(" ")}>
-                    <span className="font-heading tracking-wide">{tab.label}</span>
+                    <span className="font-heading tracking-wide">
+                      <span className="sm:hidden">
+                        {tab.id === "events" ? "Events" : tab.id === "build-event" ? "Build" : "Menu"}
+                      </span>
+                      <span className="hidden sm:inline">{tab.label}</span>
+                    </span>
                   </button>
                 ))}
               </nav>
@@ -892,7 +903,7 @@ function App() {
                 </button>
 
                 {settingsOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-72 rounded-lg border border-border bg-card shadow-xl z-50 p-4 space-y-3">
+                  <div className="absolute right-0 top-full mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-card shadow-xl z-50 p-4 space-y-3">
                     <p className="font-heading text-xs font-bold uppercase tracking-widest text-muted-foreground">Settings</p>
                     <div className="space-y-1.5">
                       <label className="text-sm font-medium text-foreground" htmlFor="company-name-input">
