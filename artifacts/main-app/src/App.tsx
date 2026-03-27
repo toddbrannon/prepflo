@@ -66,7 +66,7 @@ interface SavedEvent {
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
-const MENU_KEY    = "menu-database-items";
+const MENU_KEY    = "pf_menu";
 const EVENTS_KEY  = "build-events";
 const COMPANY_KEY = "eventops-company-name";
 
@@ -814,223 +814,226 @@ function BuildEventTab({ editingEvent, onClearEdit }: {
 
 // ─── Menu Database Tab ────────────────────────────────────────────────────────
 
-type PrepItemDraft = { id: string; name: string; defaultQty: string; allergyNote: string };
-
-const emptyDishForm = () => ({
-  name: "",
-  category: CATEGORIES[0] as Category,
-  prepItems: [] as PrepItemDraft[],
-});
-
 function MenuDatabaseTab() {
   const [dishes, setDishes] = useState<Dish[]>(loadDishes);
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState(emptyDishForm());
-  const [error, setError] = useState("");
+  const [newForm, setNewForm] = useState<{ name: string; category: Category } | null>(null);
+  const [newFormError, setNewFormError] = useState("");
 
+  // Auto-persist on every change
   useEffect(() => { saveDishes(dishes); }, [dishes]);
 
-  function openAdd() {
-    setEditingId(null); setForm(emptyDishForm()); setError(""); setShowForm(true);
-  }
-  function openEdit(dish: Dish) {
-    setEditingId(dish.id);
-    setForm({ name: dish.name, category: dish.category, prepItems: dish.prepItems.map((p) => ({ ...p })) });
-    setError(""); setShowForm(true);
-  }
-  function handleDelete(id: string) {
-    setDishes((prev) => prev.filter((d) => d.id !== id));
-    if (editingId === id) { setShowForm(false); setEditingId(null); }
-  }
-  function handleCancel() { setShowForm(false); setEditingId(null); setForm(emptyDishForm()); setError(""); }
-
-  function addPrepItem() {
-    setForm((f) => ({
-      ...f,
-      prepItems: [...f.prepItems, { id: crypto.randomUUID(), name: "", defaultQty: "", allergyNote: "" }],
-    }));
-  }
-  function updatePrepItem(id: string, field: keyof PrepItemDraft, value: string) {
-    setForm((f) => ({ ...f, prepItems: f.prepItems.map((p) => p.id === id ? { ...p, [field]: value } : p) }));
-  }
-  function removePrepItem(id: string) {
-    setForm((f) => ({ ...f, prepItems: f.prepItems.filter((p) => p.id !== id) }));
-  }
-
-  function handleSubmit(e: React.FormEvent) {
+  // ── Dish-level operations ──────────────────────────────────────────────────
+  function handleAddDish(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name.trim()) { setError("Dish name is required."); return; }
-    if (form.prepItems.some((p) => !p.name.trim())) { setError("All prep item names are required."); return; }
-    setError("");
-    if (editingId) {
-      setDishes((prev) => prev.map((d) =>
-        d.id === editingId
-          ? { ...d, name: form.name.trim(), category: form.category, prepItems: form.prepItems.map((p) => ({ ...p, name: p.name.trim() })) }
-          : d
-      ));
-    } else {
-      setDishes((prev) => [...prev, {
-        id: crypto.randomUUID(),
-        name: form.name.trim(),
-        category: form.category,
-        prepItems: form.prepItems.map((p) => ({ ...p, name: p.name.trim() })),
-      }]);
-    }
-    setShowForm(false); setEditingId(null); setForm(emptyDishForm());
+    if (!newForm?.name.trim()) { setNewFormError("Dish name is required."); return; }
+    setDishes((prev) => [...prev, {
+      id: crypto.randomUUID(),
+      name: newForm.name.trim(),
+      category: newForm.category,
+      prepItems: [],
+    }]);
+    setNewForm(null);
+    setNewFormError("");
+  }
+
+  function updateDishName(dishId: string, name: string) {
+    setDishes((prev) => prev.map((d) => d.id === dishId ? { ...d, name } : d));
+  }
+
+  function updateDishCategory(dishId: string, category: Category) {
+    setDishes((prev) => prev.map((d) => d.id === dishId ? { ...d, category } : d));
+  }
+
+  function deleteDish(dishId: string) {
+    setDishes((prev) => prev.filter((d) => d.id !== dishId));
+  }
+
+  // ── Prep-item-level operations ─────────────────────────────────────────────
+  function addPrepItem(dishId: string) {
+    setDishes((prev) => prev.map((d) =>
+      d.id === dishId
+        ? { ...d, prepItems: [...d.prepItems, { id: crypto.randomUUID(), name: "", defaultQty: "", allergyNote: "" }] }
+        : d
+    ));
+  }
+
+  function updatePrepItem(dishId: string, prepItemId: string, field: keyof PrepItem, value: string) {
+    setDishes((prev) => prev.map((d) =>
+      d.id === dishId
+        ? { ...d, prepItems: d.prepItems.map((p) => p.id === prepItemId ? { ...p, [field]: value } : p) }
+        : d
+    ));
+  }
+
+  function removePrepItem(dishId: string, prepItemId: string) {
+    setDishes((prev) => prev.map((d) =>
+      d.id === dishId
+        ? { ...d, prepItems: d.prepItems.filter((p) => p.id !== prepItemId) }
+        : d
+    ));
   }
 
   const usedCategories = CATEGORIES.filter((cat) => dishes.some((d) => d.category === cat));
-  const smallInput = "rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent transition";
+  const cellInput = "w-full rounded border border-input bg-background px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent transition";
+  const XIcon = () => (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+    </svg>
+  );
 
   return (
     <div className="space-y-6">
+
+      {/* Page header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h2 className="font-heading text-3xl font-semibold tracking-wide text-foreground">Menu Database</h2>
-          <p className="mt-1 text-muted-foreground">Dishes and their prep items, organized by category.</p>
+          <p className="mt-1 text-muted-foreground">Dishes and their prep items — all fields editable inline, changes save automatically.</p>
         </div>
-        {!showForm && (
-          <button onClick={openAdd}
+        {!newForm && (
+          <button onClick={() => { setNewForm({ name: "", category: CATEGORIES[0] }); setNewFormError(""); }}
             className="rounded-md bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground hover:brightness-110 active:brightness-95 transition-all flex-shrink-0">
             + Add Dish
           </button>
         )}
       </div>
 
-      {/* Add / Edit Form */}
-      {showForm && (
-        <div className="rounded-lg border border-border bg-card p-6 space-y-5">
-          <h3 className="font-heading text-xl font-semibold text-foreground">{editingId ? "Edit Dish" : "Add New Dish"}</h3>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground" htmlFor="dish-name">Dish Name *</label>
-                <input id="dish-name" type="text" value={form.name}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g. Herb-Roasted Chicken Breast" className={inputClass} autoFocus />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground" htmlFor="dish-category">Category *</label>
-                <select id="dish-category" value={form.category}
-                  onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as Category }))}
-                  className={inputClass}>
-                  {CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
-                </select>
-              </div>
+      {/* New dish form */}
+      {newForm && (
+        <form onSubmit={handleAddDish}
+          className="rounded-lg border border-border bg-card p-5 space-y-4">
+          <h3 className="font-heading text-base font-semibold text-foreground">New Dish</h3>
+          {newFormError && <p className="text-sm text-destructive">{newFormError}</p>}
+          <div className="flex flex-wrap gap-3 items-end">
+            <div className="space-y-1 flex-1 min-w-[200px]">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dish Name *</label>
+              <input type="text" value={newForm.name} autoFocus
+                onChange={(e) => setNewForm((f) => f ? { ...f, name: e.target.value } : null)}
+                placeholder="e.g. Herb-Roasted Chicken Breast"
+                className={inputClass} />
             </div>
-
-            {/* Prep Items */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-foreground">Prep Items</label>
-                <button type="button" onClick={addPrepItem}
-                  className="text-xs font-semibold text-accent hover:brightness-110 transition-all">
-                  + Add Item
-                </button>
-              </div>
-
-              {form.prepItems.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic py-2">No prep items yet. Click "+ Add Item" above.</p>
-              ) : (
-                <div className="space-y-2">
-                  {/* Header row */}
-                  <div className="grid grid-cols-[1fr_120px_140px_28px] gap-2 px-1">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Name *</p>
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Default Qty</p>
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Allergy Note</p>
-                    <span />
-                  </div>
-                  {form.prepItems.map((p) => (
-                    <div key={p.id} className="grid grid-cols-[1fr_120px_140px_28px] gap-2 items-center">
-                      <input type="text" value={p.name} placeholder="e.g. Salmon Fillets 6 oz"
-                        onChange={(e) => updatePrepItem(p.id, "name", e.target.value)}
-                        className={smallInput} />
-                      <input type="text" value={p.defaultQty} placeholder="e.g. 10 lbs"
-                        onChange={(e) => updatePrepItem(p.id, "defaultQty", e.target.value)}
-                        className={smallInput} />
-                      <input type="text" value={p.allergyNote} placeholder="e.g. Dairy"
-                        onChange={(e) => updatePrepItem(p.id, "allergyNote", e.target.value)}
-                        className={smallInput} />
-                      <button type="button" onClick={() => removePrepItem(p.id)}
-                        className="text-muted-foreground hover:text-destructive transition-colors">
-                        <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+            <div className="space-y-1 w-48">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Category *</label>
+              <select value={newForm.category}
+                onChange={(e) => setNewForm((f) => f ? { ...f, category: e.target.value as Category } : null)}
+                className={inputClass}>
+                {CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
             </div>
-
-            <div className="flex gap-3 pt-1">
+            <div className="flex gap-2 pb-0.5">
               <button type="submit"
-                className="rounded-md bg-accent px-6 py-2.5 text-sm font-semibold text-accent-foreground hover:brightness-110 active:brightness-95 transition-all">
-                {editingId ? "Save Changes" : "Add Dish"}
+                className="rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground hover:brightness-110 transition-all">
+                Add
               </button>
-              <button type="button" onClick={handleCancel}
-                className="rounded-md border border-border px-6 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors">
+              <button type="button" onClick={() => { setNewForm(null); setNewFormError(""); }}
+                className="rounded-md border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors">
                 Cancel
               </button>
             </div>
-          </form>
-        </div>
+          </div>
+        </form>
       )}
 
-      {/* Dish list */}
-      {dishes.length === 0 ? (
+      {/* Dish list — empty state */}
+      {dishes.length === 0 && !newForm && (
         <div className="rounded-lg border border-dashed border-border bg-card/50 py-16 text-center">
           <p className="text-muted-foreground text-sm">No dishes yet. Click <span className="text-accent font-medium">+ Add Dish</span> to get started.</p>
         </div>
-      ) : (
+      )}
+
+      {/* Dishes grouped by category */}
+      {usedCategories.length > 0 && (
         <div className="space-y-8">
           {usedCategories.map((category) => (
             <div key={category}>
-              <h3 className="font-heading text-sm font-semibold text-accent uppercase tracking-widest mb-3">{category}</h3>
-              <div className="space-y-3">
+              <h3 className="font-heading text-xs font-bold text-accent uppercase tracking-widest mb-3">{category}</h3>
+              <div className="space-y-4">
                 {dishes.filter((d) => d.category === category).map((dish) => (
-                  <div key={dish.id} className="rounded-lg border border-border bg-card overflow-hidden">
-                    {/* Dish header row */}
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/20">
-                      <p className="font-heading text-base font-semibold text-foreground">{dish.name}</p>
-                      <div className="flex items-center gap-4 flex-shrink-0">
-                        <button onClick={() => openEdit(dish)}
-                          className="text-xs text-muted-foreground hover:text-accent transition-colors">Edit</button>
-                        <button onClick={() => handleDelete(dish.id)}
-                          className="text-xs text-muted-foreground hover:text-destructive transition-colors">Delete</button>
-                      </div>
+                  <div key={dish.id}
+                    className="rounded-lg border border-border bg-card overflow-hidden">
+
+                    {/* ── Dish header: inline editable name + category + delete ── */}
+                    <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-border bg-muted/20">
+                      <input
+                        type="text"
+                        value={dish.name}
+                        onChange={(e) => updateDishName(dish.id, e.target.value)}
+                        placeholder="Dish name"
+                        className="flex-1 min-w-[180px] rounded border border-transparent bg-transparent px-1 py-0.5 font-heading text-base font-semibold text-foreground placeholder:text-muted-foreground focus:border-accent focus:bg-card focus:outline-none focus:ring-0 transition-colors"
+                      />
+                      <select
+                        value={dish.category}
+                        onChange={(e) => updateDishCategory(dish.id, e.target.value as Category)}
+                        className="rounded border border-input bg-background px-2 py-1 text-xs text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent transition">
+                        {CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+                      </select>
+                      <button
+                        onClick={() => deleteDish(dish.id)}
+                        className="ml-auto text-xs text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
+                        title="Delete dish">
+                        Delete dish
+                      </button>
                     </div>
-                    {/* Prep items table */}
-                    {dish.prepItems.length === 0 ? (
-                      <p className="px-4 py-3 text-xs text-muted-foreground italic">No prep items defined.</p>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm min-w-[420px]">
-                          <thead>
-                            <tr className="border-b border-border">
-                              <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground w-[45%]">Prep Item</th>
-                              <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground w-[20%]">Default Qty</th>
-                              <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">Allergy Note</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border">
-                            {dish.prepItems.map((p) => (
-                              <tr key={p.id} className="hover:bg-secondary/20 transition-colors">
-                                <td className="px-4 py-2.5 font-medium text-foreground">{p.name}</td>
-                                <td className="px-4 py-2.5 text-muted-foreground tabular-nums">{p.defaultQty || "—"}</td>
-                                <td className="px-4 py-2.5">
-                                  {p.allergyNote
-                                    ? <span className="inline-flex items-center gap-1 text-xs text-amber-400"><WarningIcon />{p.allergyNote}</span>
-                                    : <span className="text-muted-foreground/50">—</span>}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
+
+                    {/* ── Prep items: inline-editable rows ── */}
+                    <div className="px-4 py-3 space-y-2">
+
+                      {/* Column headers */}
+                      {dish.prepItems.length > 0 && (
+                        <div className="grid grid-cols-[1fr_130px_150px_28px] gap-2 px-0.5 mb-1">
+                          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Prep Item Name</p>
+                          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Default Qty</p>
+                          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Allergy Note</p>
+                          <span />
+                        </div>
+                      )}
+
+                      {/* Prep item rows */}
+                      {dish.prepItems.map((p) => (
+                        <div key={p.id} className="grid grid-cols-[1fr_130px_150px_28px] gap-2 items-center">
+                          <input
+                            type="text"
+                            value={p.name}
+                            onChange={(e) => updatePrepItem(dish.id, p.id, "name", e.target.value)}
+                            placeholder="e.g. Salmon Fillets 6 oz"
+                            className={cellInput}
+                          />
+                          <input
+                            type="text"
+                            value={p.defaultQty}
+                            onChange={(e) => updatePrepItem(dish.id, p.id, "defaultQty", e.target.value)}
+                            placeholder="e.g. 10 lbs"
+                            className={cellInput}
+                          />
+                          <input
+                            type="text"
+                            value={p.allergyNote}
+                            onChange={(e) => updatePrepItem(dish.id, p.id, "allergyNote", e.target.value)}
+                            placeholder="e.g. Dairy, Gluten"
+                            className={cellInput}
+                          />
+                          <button
+                            onClick={() => removePrepItem(dish.id, p.id)}
+                            className="flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors"
+                            title="Remove prep item">
+                            <XIcon />
+                          </button>
+                        </div>
+                      ))}
+
+                      {/* Empty state for prep items */}
+                      {dish.prepItems.length === 0 && (
+                        <p className="text-xs text-muted-foreground italic py-1">No prep items yet.</p>
+                      )}
+
+                      {/* Add prep item button */}
+                      <button
+                        onClick={() => addPrepItem(dish.id)}
+                        className="mt-1 text-xs font-semibold text-accent hover:brightness-110 transition-all">
+                        + Add Prep Item
+                      </button>
+                    </div>
+
                   </div>
                 ))}
               </div>
