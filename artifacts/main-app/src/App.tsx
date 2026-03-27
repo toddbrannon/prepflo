@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 type Tab = "events" | "build-event" | "menu-database";
 
@@ -136,18 +136,115 @@ function BuildEventTab() {
   );
 }
 
-function MenuDatabaseTab() {
-  const menuItems = [
-    { category: "Appetizers", name: "Bruschetta", description: "Tomato, basil, garlic on toasted bread", dietary: ["V"] },
-    { category: "Appetizers", name: "Shrimp Cocktail", description: "Chilled shrimp with house cocktail sauce", dietary: ["GF"] },
-    { category: "Mains", name: "Filet Mignon", description: "8oz center-cut, served with seasonal vegetables", dietary: ["GF"] },
-    { category: "Mains", name: "Pan-Seared Salmon", description: "Atlantic salmon with lemon beurre blanc", dietary: ["GF"] },
-    { category: "Mains", name: "Mushroom Risotto", description: "Wild mushroom blend, parmesan, truffle oil", dietary: ["V", "GF"] },
-    { category: "Desserts", name: "Chocolate Lava Cake", description: "Warm chocolate cake with vanilla bean ice cream", dietary: [] },
-    { category: "Desserts", name: "Crème Brûlée", description: "Classic vanilla custard with caramelized sugar", dietary: ["GF"] },
-  ];
+const CATEGORIES = [
+  "Appetizers",
+  "Proteins",
+  "Starches",
+  "Vegetables",
+  "Salads",
+  "Sauces & Dressings",
+  "Desserts",
+  "Beverages",
+  "Breads & Bakery",
+  "Other",
+] as const;
 
-  const categories = [...new Set(menuItems.map((i) => i.category))];
+type Category = (typeof CATEGORIES)[number];
+
+interface MenuItem {
+  id: string;
+  name: string;
+  category: Category;
+  unit: string;
+  prepInstructions: string;
+}
+
+const STORAGE_KEY = "menu-database-items";
+
+function loadItems(): MenuItem[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveItems(items: MenuItem[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+}
+
+const inputClass =
+  "w-full rounded-md border border-input bg-card px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent transition";
+
+function MenuDatabaseTab() {
+  const [items, setItems] = useState<MenuItem[]>(loadItems);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const emptyForm = { name: "", category: CATEGORIES[0] as Category, unit: "", prepInstructions: "" };
+  const [form, setForm] = useState(emptyForm);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    saveItems(items);
+  }, [items]);
+
+  function openAdd() {
+    setEditingId(null);
+    setForm(emptyForm);
+    setError("");
+    setShowForm(true);
+  }
+
+  function openEdit(item: MenuItem) {
+    setEditingId(item.id);
+    setForm({ name: item.name, category: item.category, unit: item.unit, prepInstructions: item.prepInstructions });
+    setError("");
+    setShowForm(true);
+  }
+
+  function handleDelete(id: string) {
+    setItems((prev) => prev.filter((i) => i.id !== id));
+    if (editingId === id) {
+      setShowForm(false);
+      setEditingId(null);
+    }
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.name.trim()) { setError("Item name is required."); return; }
+    if (!form.unit.trim()) { setError("Unit is required."); return; }
+    setError("");
+
+    if (editingId) {
+      setItems((prev) =>
+        prev.map((i) => (i.id === editingId ? { ...i, ...form, name: form.name.trim(), unit: form.unit.trim() } : i))
+      );
+    } else {
+      const newItem: MenuItem = {
+        id: crypto.randomUUID(),
+        name: form.name.trim(),
+        category: form.category,
+        unit: form.unit.trim(),
+        prepInstructions: form.prepInstructions.trim(),
+      };
+      setItems((prev) => [...prev, newItem]);
+    }
+    setShowForm(false);
+    setEditingId(null);
+    setForm(emptyForm);
+  }
+
+  function handleCancel() {
+    setShowForm(false);
+    setEditingId(null);
+    setForm(emptyForm);
+    setError("");
+  }
+
+  const usedCategories = CATEGORIES.filter((cat) => items.some((i) => i.category === cat));
 
   return (
     <div className="space-y-6">
@@ -157,64 +254,164 @@ function MenuDatabaseTab() {
             Menu Database
           </h2>
           <p className="mt-1 text-muted-foreground">
-            All available menu items organized by category.
+            All menu items organized by category. Data is saved automatically.
           </p>
         </div>
-        <button className="rounded-md bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground hover:brightness-110 active:brightness-95 transition-all flex-shrink-0">
-          + Add Item
-        </button>
+        {!showForm && (
+          <button
+            onClick={openAdd}
+            className="rounded-md bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground hover:brightness-110 active:brightness-95 transition-all flex-shrink-0"
+          >
+            + Add Item
+          </button>
+        )}
       </div>
 
-      <div className="space-y-8">
-        {categories.map((category) => (
-          <div key={category}>
-            <h3 className="font-heading text-xl font-semibold text-accent mb-3 uppercase tracking-widest text-sm">
-              {category}
-            </h3>
-            <div className="divide-y divide-border rounded-lg border border-border overflow-hidden">
-              {menuItems
-                .filter((item) => item.category === category)
-                .map((item) => (
-                  <div
-                    key={item.name}
-                    className="flex items-start justify-between gap-4 bg-card px-5 py-4 hover:bg-secondary/40 transition-colors"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-heading text-lg font-medium text-foreground">
-                          {item.name}
-                        </span>
-                        {item.dietary.map((tag) => (
-                          <span
-                            key={tag}
-                            className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                      <p className="mt-0.5 text-sm text-muted-foreground">{item.description}</p>
-                    </div>
-                    <button className="flex-shrink-0 text-xs text-muted-foreground hover:text-accent transition-colors">
-                      Edit
-                    </button>
-                  </div>
-                ))}
+      {showForm && (
+        <div className="rounded-lg border border-border bg-card p-6 space-y-4">
+          <h3 className="font-heading text-xl font-semibold text-foreground">
+            {editingId ? "Edit Item" : "Add New Item"}
+          </h3>
+          {error && (
+            <p className="text-sm text-destructive">{error}</p>
+          )}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground" htmlFor="item-name">
+                  Item Name *
+                </label>
+                <input
+                  id="item-name"
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. Grilled Chicken Breast"
+                  className={inputClass}
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground" htmlFor="item-category">
+                  Category *
+                </label>
+                <select
+                  id="item-category"
+                  value={form.category}
+                  onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as Category }))}
+                  className={inputClass}
+                >
+                  {CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
 
-      <div className="mt-4 flex gap-4 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1">
-          <span className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">V</span>
-          Vegetarian
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">GF</span>
-          Gluten Free
-        </span>
-      </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground" htmlFor="item-unit">
+                Unit *
+              </label>
+              <input
+                id="item-unit"
+                type="text"
+                value={form.unit}
+                onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
+                placeholder="e.g. lbs, portions, qts"
+                className={inputClass}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground" htmlFor="item-prep">
+                Default Prep Instructions
+              </label>
+              <textarea
+                id="item-prep"
+                rows={3}
+                value={form.prepInstructions}
+                onChange={(e) => setForm((f) => ({ ...f, prepInstructions: e.target.value }))}
+                placeholder="Describe how to prepare this item..."
+                className={`${inputClass} resize-none`}
+              />
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button
+                type="submit"
+                className="rounded-md bg-accent px-6 py-2.5 text-sm font-semibold text-accent-foreground hover:brightness-110 active:brightness-95 transition-all"
+              >
+                {editingId ? "Save Changes" : "Add Item"}
+              </button>
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="rounded-md border border-border px-6 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {items.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border bg-card/50 py-16 text-center">
+          <p className="text-muted-foreground text-sm">No items yet. Click <span className="text-accent font-medium">+ Add Item</span> to get started.</p>
+        </div>
+      ) : (
+        <div className="space-y-8">
+          {usedCategories.map((category) => {
+            const catItems = items.filter((i) => i.category === category);
+            return (
+              <div key={category}>
+                <h3 className="font-heading text-sm font-semibold text-accent uppercase tracking-widest mb-2">
+                  {category}
+                </h3>
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/60 border-b border-border">
+                        <th className="text-left px-4 py-2.5 font-semibold text-foreground w-[30%]">Item Name</th>
+                        <th className="text-left px-4 py-2.5 font-semibold text-foreground w-[12%]">Unit</th>
+                        <th className="text-left px-4 py-2.5 font-semibold text-foreground">Default Prep Instructions</th>
+                        <th className="px-4 py-2.5 w-[100px]"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {catItems.map((item) => (
+                        <tr key={item.id} className="bg-card hover:bg-secondary/30 transition-colors">
+                          <td className="px-4 py-3 font-medium text-foreground align-top">{item.name}</td>
+                          <td className="px-4 py-3 text-muted-foreground align-top">{item.unit}</td>
+                          <td className="px-4 py-3 text-muted-foreground align-top whitespace-pre-wrap">
+                            {item.prepInstructions || <span className="italic text-muted-foreground/50">—</span>}
+                          </td>
+                          <td className="px-4 py-3 align-top">
+                            <div className="flex items-center justify-end gap-3">
+                              <button
+                                onClick={() => openEdit(item)}
+                                className="text-xs text-muted-foreground hover:text-accent transition-colors"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDelete(item.id)}
+                                className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
