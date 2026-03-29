@@ -1168,6 +1168,18 @@ function App() {
                   </div>
                 )}
               </div>
+
+              {/* Logout */}
+              <button
+                onClick={() => { localStorage.removeItem("pf_token"); window.location.replace("/login"); }}
+                className="rounded-md p-2 transition-colors text-muted-foreground hover:text-foreground hover:bg-secondary"
+                aria-label="Sign out"
+                title="Sign out">
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                  <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h7a1 1 0 000-2H4V5h6a1 1 0 000-2H3zm11.707 4.293a1 1 0 010 1.414L13.414 10l1.293 1.293a1 1 0 01-1.414 1.414l-2-2a1 1 0 010-1.414l2-2a1 1 0 011.414 0z" clipRule="evenodd" />
+                  <path d="M13 10a1 1 0 011-1h3a1 1 0 110 2h-3a1 1 0 01-1-1z" />
+                </svg>
+              </button>
             </div>
           </div>
         </div>
