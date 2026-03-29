@@ -46,4 +46,43 @@ router.get("/auth/me", (req, res) => {
   res.json({ user: req.user });
 });
 
+const seedSchema = z.object({ secret: z.string().min(1) });
+
+const DEMO_EMAIL = "demo@prepflo.com";
+const DEMO_PASSWORD = "PrepFlo2026!";
+
+// POST /api/auth/seed-demo-user — idempotent, guarded by SEED_SECRET
+router.post("/auth/seed-demo-user", async (req, res) => {
+  const seedSecret = process.env.SEED_SECRET;
+  if (!seedSecret) {
+    res.status(503).json({ error: "Seeding is not enabled on this server" });
+    return;
+  }
+
+  const { secret } = seedSchema.parse(req.body);
+  if (secret !== seedSecret) {
+    res.status(403).json({ error: "Invalid seed secret" });
+    return;
+  }
+
+  const [existing] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.email, DEMO_EMAIL))
+    .limit(1);
+
+  if (existing) {
+    res.json({ created: false, message: "Demo user already exists" });
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 12);
+  const [user] = await db
+    .insert(usersTable)
+    .values({ email: DEMO_EMAIL, passwordHash })
+    .returning({ id: usersTable.id, email: usersTable.email });
+
+  res.status(201).json({ created: true, user });
+});
+
 export default router;

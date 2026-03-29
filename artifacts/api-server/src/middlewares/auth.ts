@@ -14,6 +14,7 @@ declare global {
 const PUBLIC: Array<{ method: string; path: string }> = [
   { method: "GET",  path: "/api/healthz" },
   { method: "POST", path: "/api/auth/login" },
+  { method: "POST", path: "/api/auth/seed-demo-user" },
 ];
 
 export function authMiddleware(
