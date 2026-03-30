@@ -21,6 +21,18 @@ const uuidParams = z.object({
 // Body schema for adding a dish to an event — eventId comes from the URL
 const addEventDishSchema = insertEventDishSchema.omit({ eventId: true });
 
+// Coerce empty strings to null for date fields before inserting
+function normaliseEventBody(raw: ReturnType<typeof insertEventSchema.parse>) {
+  return {
+    ...raw,
+    date: raw.date || null,
+    startTime: raw.startTime || null,
+    guestCount: raw.guestCount || null,
+    venue: raw.venue || null,
+    onsiteContact: raw.onsiteContact || null,
+  };
+}
+
 // GET /api/events
 router.get("/events", async (_req, res) => {
   const events = await db.select().from(eventsTable).orderBy(eventsTable.date);
@@ -29,7 +41,7 @@ router.get("/events", async (_req, res) => {
 
 // POST /api/events
 router.post("/events", async (req, res) => {
-  const body = insertEventSchema.parse(req.body);
+  const body = normaliseEventBody(insertEventSchema.parse(req.body));
   const [event] = await db.insert(eventsTable).values(body).returning();
   res.status(201).json(event);
 });
@@ -37,7 +49,7 @@ router.post("/events", async (req, res) => {
 // PUT /api/events/:id
 router.put("/events/:id", async (req, res) => {
   const { id } = uuidParam.parse(req.params);
-  const body = insertEventSchema.parse(req.body);
+  const body = normaliseEventBody(insertEventSchema.parse(req.body));
   const [event] = await db
     .update(eventsTable)
     .set(body)

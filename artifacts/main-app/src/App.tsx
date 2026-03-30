@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { DEMO_MENU, DEMO_EVENTS } from "./demo-data.js";
+import { api } from "./lib/api";
 
 // ─── Types & constants ────────────────────────────────────────────────────────
 
@@ -67,41 +68,39 @@ interface SavedEvent {
   savedAt: string;
 }
 
-// ─── Storage ──────────────────────────────────────────────────────────────────
+// ─── Storage & API helpers ────────────────────────────────────────────────────
 
-const MENU_KEY    = "pf_menu";
-const EVENTS_KEY  = "pf_events";
+// Company name stays in localStorage — it's a UI preference, not shared data
 const COMPANY_KEY = "eventops-company-name";
-
 function loadCompanyName(): string { return localStorage.getItem(COMPANY_KEY) ?? ""; }
 function saveCompanyName(n: string) { localStorage.setItem(COMPANY_KEY, n); }
 
-function saveDishes(dishes: Dish[]) { localStorage.setItem(MENU_KEY, JSON.stringify(dishes)); }
-function loadDishes(): Dish[] {
-  try {
-    const raw = localStorage.getItem(MENU_KEY);
-    // Seed if never set OR if set to an empty array
-    if (raw === null) { saveDishes(DEMO_MENU as Dish[]); return DEMO_MENU as Dish[]; }
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) { saveDishes(DEMO_MENU as Dish[]); return DEMO_MENU as Dish[]; }
-    // Auto-migrate from old MenuItem format (no prepItems) → reseed from demo
-    if (!("prepItems" in parsed[0])) { saveDishes(DEMO_MENU as Dish[]); return DEMO_MENU as Dish[]; }
-    return parsed;
-  } catch { return DEMO_MENU as Dish[]; }
+// Map an API dish row → frontend Dish type
+function apiToDish(d: Record<string, unknown>): Dish {
+  return {
+    id: String(d.id ?? ""),
+    name: String(d.name ?? ""),
+    category: (d.category as Category) ?? CATEGORIES[0],
+    prepItems: (d.prepItems as PrepItem[]) ?? [],
+  };
 }
 
-function persistEvents(events: SavedEvent[]) { localStorage.setItem(EVENTS_KEY, JSON.stringify(events)); }
-function loadEvents(): SavedEvent[] {
-  try {
-    const raw = localStorage.getItem(EVENTS_KEY);
-    // Seed if never set OR if set to an empty array
-    if (raw === null) { persistEvents(DEMO_EVENTS as SavedEvent[]); return DEMO_EVENTS as SavedEvent[]; }
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) { persistEvents(DEMO_EVENTS as SavedEvent[]); return DEMO_EVENTS as SavedEvent[]; }
-    // Auto-migrate from old format (lineItems) → clear and seed from demo
-    if (!("dishes" in parsed[0])) { persistEvents(DEMO_EVENTS as SavedEvent[]); return DEMO_EVENTS as SavedEvent[]; }
-    return parsed;
-  } catch { return DEMO_EVENTS as SavedEvent[]; }
+// Map an API event row → frontend SavedEvent type
+function apiToEvent(e: Record<string, unknown>): SavedEvent {
+  return {
+    id: String(e.id ?? ""),
+    name: String(e.name ?? ""),
+    client: String(e.client ?? ""),
+    date: String(e.date ?? ""),
+    startTime: String(e.startTime ?? ""),
+    guestCount: String(e.guestCount ?? ""),
+    venue: String(e.venue ?? ""),
+    onsiteContact: String(e.onsiteContact ?? ""),
+    allergies: String(e.allergies ?? ""),
+    notes: String(e.notes ?? ""),
+    dishes: (e.dishes as EventDish[]) ?? [],
+    savedAt: String(e.savedAt ?? new Date().toISOString()),
+  };
 }
 
 
@@ -380,7 +379,32 @@ function EventsTab({ onEdit, onViewPrepSheet }: {
   onViewPrepSheet: (event: SavedEvent) => void;
 }) {
   const [events, setEvents] = useState<SavedEvent[]>([]);
-  useEffect(() => { setEvents(loadEvents()); }, []);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get<Record<string, unknown>[]>("/api/events")
+      .then(async (data) => {
+        if (data.length === 0) {
+          // Seed demo events on first load
+          const seeded = await Promise.all(
+            (DEMO_EVENTS as SavedEvent[]).map((ev) =>
+              api.post<Record<string, unknown>>("/api/events", {
+                name: ev.name, client: ev.client, date: ev.date || null,
+                startTime: ev.startTime || null, guestCount: ev.guestCount || null,
+                venue: ev.venue || null, onsiteContact: ev.onsiteContact || null,
+                allergies: ev.allergies || null, notes: ev.notes || null,
+                dishes: ev.dishes, savedAt: ev.savedAt,
+              })
+            )
+          );
+          setEvents(seeded.map(apiToEvent));
+        } else {
+          setEvents(data.map(apiToEvent));
+        }
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
 
   const sorted = [...events].sort((a, b) => {
     if (!a.date) return 1;
@@ -395,7 +419,11 @@ function EventsTab({ onEdit, onViewPrepSheet }: {
         <p className="mt-1 text-muted-foreground">All saved events, sorted by date.</p>
       </div>
 
-      {sorted.length === 0 ? (
+      {loading ? (
+        <div className="rounded-lg border border-dashed border-border bg-card/50 py-20 text-center">
+          <p className="text-muted-foreground text-sm">Loading events…</p>
+        </div>
+      ) : sorted.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-card/50 py-20 text-center">
           <p className="text-muted-foreground text-sm">
             No events saved yet. Use <span className="text-accent font-medium">Build Event</span> to create one.
@@ -487,7 +515,11 @@ function BuildEventTab({ editingEvent, onClearEdit }: {
   const [saveMsg, setSaveMsg] = useState<"saved" | null>(null);
   const [formError, setFormError] = useState("");
 
-  useEffect(() => { setAllDishes(loadDishes()); }, []);
+  useEffect(() => {
+    api.get<Record<string, unknown>[]>("/api/dishes")
+      .then((data) => setAllDishes(data.map(apiToDish)))
+      .catch(console.error);
+  }, []);
 
   useEffect(() => {
     if (editingEvent) {
@@ -559,28 +591,38 @@ function BuildEventTab({ editingEvent, onClearEdit }: {
     setEventDishes((prev) => prev.filter((d) => d.dishId !== dishId));
   }
 
-  function handleSave() {
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
     if (!details.name.trim()) { setFormError("Event Name is required."); return; }
     setFormError("");
-    const existing = loadEvents();
-    if (editingEvent) {
-      persistEvents(existing.map((ev) =>
-        ev.id === editingEvent.id
-          ? { ...ev, ...details, name: details.name.trim(), client: details.client.trim(), dishes: eventDishes }
-          : ev
-      ));
-    } else {
-      persistEvents([...existing, {
-        id: crypto.randomUUID(),
-        ...details,
+    setSaving(true);
+    try {
+      const payload = {
         name: details.name.trim(),
         client: details.client.trim(),
+        date: details.date || null,
+        startTime: details.startTime || null,
+        guestCount: details.guestCount || null,
+        venue: details.venue || null,
+        onsiteContact: details.onsiteContact || null,
+        allergies: details.allergies || null,
+        notes: details.notes || null,
         dishes: eventDishes,
         savedAt: new Date().toISOString(),
-      }]);
+      };
+      if (editingEvent) {
+        await api.put(`/api/events/${editingEvent.id}`, payload);
+      } else {
+        await api.post("/api/events", payload);
+      }
+      setSaveMsg("saved");
+      setTimeout(() => setSaveMsg(null), 3000);
+    } catch (err) {
+      setFormError(String(err));
+    } finally {
+      setSaving(false);
     }
-    setSaveMsg("saved");
-    setTimeout(() => setSaveMsg(null), 3000);
   }
 
   function handleReset() {
@@ -832,9 +874,9 @@ function BuildEventTab({ editingEvent, onClearEdit }: {
 
       {/* Save / Reset */}
       <div className="flex items-center gap-4 pb-4">
-        <button type="button" onClick={handleSave}
-          className="rounded-md bg-accent px-8 py-2.5 text-sm font-semibold text-accent-foreground hover:brightness-110 active:brightness-95 transition-all">
-          {editingEvent ? "Save Changes" : "Save Event"}
+        <button type="button" onClick={handleSave} disabled={saving}
+          className="rounded-md bg-accent px-8 py-2.5 text-sm font-semibold text-accent-foreground hover:brightness-110 active:brightness-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+          {saving ? "Saving…" : editingEvent ? "Save Changes" : "Save Event"}
         </button>
         <button type="button" onClick={handleReset}
           className="rounded-md border border-border px-6 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors">
@@ -853,46 +895,82 @@ function BuildEventTab({ editingEvent, onClearEdit }: {
 // ─── Menu Database Tab ────────────────────────────────────────────────────────
 
 function MenuDatabaseTab() {
-  const [dishes, setDishes] = useState<Dish[]>(loadDishes);
+  const [dishes, setDishes] = useState<Dish[]>([]);
   const [newForm, setNewForm] = useState<{ name: string; category: Category } | null>(null);
   const [newFormError, setNewFormError] = useState("");
+  const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  // Auto-persist on every change
-  useEffect(() => { saveDishes(dishes); }, [dishes]);
+  // Load dishes from API; seed with demo data if database is empty
+  useEffect(() => {
+    api.get<Record<string, unknown>[]>("/api/dishes")
+      .then(async (data) => {
+        if (data.length === 0) {
+          const seeded = await Promise.all(
+            (DEMO_MENU as Dish[]).map((d) =>
+              api.post<Record<string, unknown>>("/api/dishes", {
+                name: d.name, category: d.category, prepItems: d.prepItems,
+              })
+            )
+          );
+          setDishes(seeded.map(apiToDish));
+        } else {
+          setDishes(data.map(apiToDish));
+        }
+      })
+      .catch(console.error);
+  }, []);
+
+  // Debounced PUT for any dish mutation (600 ms after last change)
+  function scheduleSaveDish(dish: Dish) {
+    clearTimeout(saveTimers.current[dish.id]);
+    saveTimers.current[dish.id] = setTimeout(() => {
+      api.put(`/api/dishes/${dish.id}`, {
+        name: dish.name, category: dish.category, prepItems: dish.prepItems,
+      }).catch(console.error);
+    }, 600);
+  }
 
   // ── Dish-level operations ──────────────────────────────────────────────────
-  function handleAddDish(e: React.FormEvent) {
+  async function handleAddDish(e: React.FormEvent) {
     e.preventDefault();
     if (!newForm?.name.trim()) { setNewFormError("Dish name is required."); return; }
-    setDishes((prev) => [...prev, {
-      id: crypto.randomUUID(),
-      name: newForm.name.trim(),
-      category: newForm.category,
-      prepItems: [],
-    }]);
-    setNewForm(null);
-    setNewFormError("");
+    try {
+      const created = await api.post<Record<string, unknown>>("/api/dishes", {
+        name: newForm.name.trim(), category: newForm.category, prepItems: [],
+      });
+      setDishes((prev) => [...prev, apiToDish(created)]);
+      setNewForm(null);
+      setNewFormError("");
+    } catch (err) { setNewFormError(String(err)); }
   }
 
   function updateDishName(dishId: string, name: string) {
     setDishes((prev) => prev.map((d) => d.id === dishId ? { ...d, name } : d));
+    const dish = dishes.find((d) => d.id === dishId);
+    if (dish) scheduleSaveDish({ ...dish, name });
   }
 
   function updateDishCategory(dishId: string, category: Category) {
     setDishes((prev) => prev.map((d) => d.id === dishId ? { ...d, category } : d));
+    const dish = dishes.find((d) => d.id === dishId);
+    if (dish) scheduleSaveDish({ ...dish, category });
   }
 
   function deleteDish(dishId: string) {
+    clearTimeout(saveTimers.current[dishId]);
+    delete saveTimers.current[dishId];
+    api.delete(`/api/dishes/${dishId}`).catch(console.error);
     setDishes((prev) => prev.filter((d) => d.id !== dishId));
   }
 
   // ── Prep-item-level operations ─────────────────────────────────────────────
   function addPrepItem(dishId: string) {
+    const newItem = { id: crypto.randomUUID(), name: "", defaultQty: "", allergyNote: "" };
     setDishes((prev) => prev.map((d) =>
-      d.id === dishId
-        ? { ...d, prepItems: [...d.prepItems, { id: crypto.randomUUID(), name: "", defaultQty: "", allergyNote: "" }] }
-        : d
+      d.id === dishId ? { ...d, prepItems: [...d.prepItems, newItem] } : d
     ));
+    const dish = dishes.find((d) => d.id === dishId);
+    if (dish) scheduleSaveDish({ ...dish, prepItems: [...dish.prepItems, newItem] });
   }
 
   function updatePrepItem(dishId: string, prepItemId: string, field: keyof PrepItem, value: string) {
@@ -901,6 +979,11 @@ function MenuDatabaseTab() {
         ? { ...d, prepItems: d.prepItems.map((p) => p.id === prepItemId ? { ...p, [field]: value } : p) }
         : d
     ));
+    const dish = dishes.find((d) => d.id === dishId);
+    if (dish) scheduleSaveDish({
+      ...dish,
+      prepItems: dish.prepItems.map((p) => p.id === prepItemId ? { ...p, [field]: value } : p),
+    });
   }
 
   function removePrepItem(dishId: string, prepItemId: string) {
@@ -909,6 +992,8 @@ function MenuDatabaseTab() {
         ? { ...d, prepItems: d.prepItems.filter((p) => p.id !== prepItemId) }
         : d
     ));
+    const dish = dishes.find((d) => d.id === dishId);
+    if (dish) scheduleSaveDish({ ...dish, prepItems: dish.prepItems.filter((p) => p.id !== prepItemId) });
   }
 
   const usedCategories = CATEGORIES.filter((cat) => dishes.some((d) => d.category === cat));
