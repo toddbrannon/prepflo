@@ -1228,7 +1228,7 @@ function App() {
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="flex h-16 items-center justify-between gap-2">
             {/* Logo */}
-            <div className="flex items-center gap-3 min-w-0">
+            <button onClick={() => handleTabChange("events")} className="flex items-center gap-3 min-w-0 rounded-md hover:opacity-80 transition-opacity">
               <div className="h-7 w-7 rounded-md bg-accent flex items-center justify-center flex-shrink-0">
                 <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="hsl(222 18% 9%)" strokeWidth={2.5}>
                   <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" strokeLinecap="round" strokeLinejoin="round" />
@@ -1244,7 +1244,7 @@ function App() {
                   <span className="font-heading text-xl font-semibold tracking-wide text-foreground">PrepFlo</span>
                 )}
               </div>
-            </div>
+            </button>
 
             <div className="flex items-center gap-1">
               {/* Nav */}
