@@ -503,21 +503,25 @@ const emptyDetails = {
   venue: "", onsiteContact: "", allergies: "", notes: "",
 };
 
-function BuildEventTab({ editingEvent, onClearEdit }: {
+function BuildEventTab({ editingEvent, onClearEdit, onSaved }: {
   editingEvent: SavedEvent | null;
   onClearEdit: () => void;
+  onSaved: () => void;
 }) {
   const [allDishes, setAllDishes] = useState<Dish[]>([]);
+  const [existingEvents, setExistingEvents] = useState<{ id: string; name: string }[]>([]);
   const [details, setDetails] = useState(emptyDetails);
   const [eventDishes, setEventDishes] = useState<EventDish[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<Category | "">("");
   const [selectedDishId, setSelectedDishId] = useState("");
-  const [saveMsg, setSaveMsg] = useState<"saved" | null>(null);
   const [formError, setFormError] = useState("");
 
   useEffect(() => {
     api.get<Record<string, unknown>[]>("/api/dishes")
       .then((data) => setAllDishes(data.map(apiToDish)))
+      .catch(console.error);
+    api.get<Record<string, unknown>[]>("/api/events")
+      .then((data) => setExistingEvents(data.map((e) => ({ id: String(e.id), name: String(e.name) }))))
       .catch(console.error);
   }, []);
 
@@ -543,7 +547,6 @@ function BuildEventTab({ editingEvent, onClearEdit }: {
       setSelectedCategory("");
       setSelectedDishId("");
       setFormError("");
-      setSaveMsg(null);
     }
   }, [editingEvent]);
 
@@ -595,11 +598,20 @@ function BuildEventTab({ editingEvent, onClearEdit }: {
 
   async function handleSave() {
     if (!details.name.trim()) { setFormError("Event Name is required."); return; }
+    const trimmedName = details.name.trim();
+    const nameLower = trimmedName.toLowerCase();
+    const duplicate = existingEvents.find(
+      (e) => e.name.toLowerCase() === nameLower && (!editingEvent || e.id !== String(editingEvent.id))
+    );
+    if (duplicate) {
+      setFormError(`An event named "${duplicate.name}" already exists. Please choose a different name.`);
+      return;
+    }
     setFormError("");
     setSaving(true);
     try {
       const payload = {
-        name: details.name.trim(),
+        name: trimmedName,
         client: details.client.trim(),
         date: details.date || null,
         startTime: details.startTime || null,
@@ -616,8 +628,8 @@ function BuildEventTab({ editingEvent, onClearEdit }: {
       } else {
         await api.post("/api/events", payload);
       }
-      setSaveMsg("saved");
-      setTimeout(() => setSaveMsg(null), 3000);
+      handleReset();
+      onSaved();
     } catch (err) {
       setFormError(String(err));
     } finally {
@@ -631,7 +643,6 @@ function BuildEventTab({ editingEvent, onClearEdit }: {
     setSelectedCategory("");
     setSelectedDishId("");
     setFormError("");
-    setSaveMsg(null);
     onClearEdit();
   }
 
@@ -882,11 +893,6 @@ function BuildEventTab({ editingEvent, onClearEdit }: {
           className="rounded-md border border-border px-6 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors">
           {editingEvent ? "Cancel Edit" : "Reset"}
         </button>
-        {saveMsg === "saved" && (
-          <span className="text-sm text-accent font-medium">
-            {editingEvent ? "Changes saved!" : "Event saved!"}
-          </span>
-        )}
       </div>
     </div>
   );
@@ -1179,6 +1185,7 @@ function App() {
 
   function handleEdit(event: SavedEvent) { setEditingEvent(event); setActiveTab("build-event"); }
   function handleClearEdit() { setEditingEvent(null); }
+  function handleSaved() { setEditingEvent(null); setActiveTab("events"); }
   function handleTabChange(tab: Tab) { if (tab !== "build-event") setEditingEvent(null); setSettingsOpen(false); setActiveTab(tab); }
   function handleCompanyNameChange(val: string) { setCompanyName(val); saveCompanyName(val); }
 
@@ -1272,7 +1279,7 @@ function App() {
 
       <main className="flex-1 mx-auto w-full max-w-6xl px-4 sm:px-6 py-8">
         {activeTab === "events" && <EventsTab onEdit={handleEdit} onViewPrepSheet={setPrepSheetEvent} />}
-        {activeTab === "build-event" && <BuildEventTab editingEvent={editingEvent} onClearEdit={handleClearEdit} />}
+        {activeTab === "build-event" && <BuildEventTab editingEvent={editingEvent} onClearEdit={handleClearEdit} onSaved={handleSaved} />}
         {activeTab === "menu-database" && <MenuDatabaseTab />}
       </main>
     </div>
