@@ -380,6 +380,13 @@ function EventsTab({ onEdit, onViewPrepSheet }: {
 }) {
   const [events, setEvents] = useState<SavedEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  async function handleDelete(id: string) {
+    await api.delete(`/api/events/${id}`).catch(console.error);
+    setEvents((prev) => prev.filter((e) => e.id !== id));
+    setConfirmDeleteId(null);
+  }
 
   useEffect(() => {
     api.get<Record<string, unknown>[]>("/api/events")
@@ -479,14 +486,34 @@ function EventsTab({ onEdit, onViewPrepSheet }: {
                 </div>
               </div>
               <div className="flex gap-2 border-t border-border pt-3">
-                <button onClick={() => onEdit(event)}
-                  className="flex-1 rounded-md border border-border py-1.5 text-xs font-medium text-foreground hover:bg-secondary hover:border-accent/40 transition-colors">
-                  Edit
-                </button>
-                <button onClick={() => onViewPrepSheet(event)}
-                  className="flex-1 rounded-md bg-accent py-1.5 text-xs font-semibold text-accent-foreground hover:brightness-110 transition-all">
-                  View Prep Sheet
-                </button>
+                {confirmDeleteId === event.id ? (
+                  <>
+                    <span className="flex-1 text-xs text-muted-foreground flex items-center">Delete this event?</span>
+                    <button onClick={() => setConfirmDeleteId(null)}
+                      className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary transition-colors">
+                      Cancel
+                    </button>
+                    <button onClick={() => handleDelete(event.id)}
+                      className="rounded-md bg-destructive px-3 py-1.5 text-xs font-semibold text-destructive-foreground hover:brightness-110 transition-all">
+                      Delete
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={() => setConfirmDeleteId(event.id)}
+                      className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-destructive hover:border-destructive/50 transition-colors">
+                      Delete
+                    </button>
+                    <button onClick={() => onEdit(event)}
+                      className="flex-1 rounded-md border border-border py-1.5 text-xs font-medium text-foreground hover:bg-secondary hover:border-accent/40 transition-colors">
+                      Edit
+                    </button>
+                    <button onClick={() => onViewPrepSheet(event)}
+                      className="flex-1 rounded-md bg-accent py-1.5 text-xs font-semibold text-accent-foreground hover:brightness-110 transition-all">
+                      View Prep Sheet
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           ))}
@@ -662,9 +689,9 @@ function BuildEventTab({ editingEvent, onClearEdit, onSaved }: {
           </p>
         </div>
         {editingEvent && (
-          <button onClick={handleReset}
+          <button onClick={() => { handleReset(); onSaved(); }}
             className="rounded-md border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
-            ← New Event
+            ← Back to Events
           </button>
         )}
       </div>
