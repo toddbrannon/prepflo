@@ -15,6 +15,7 @@ const PUBLIC: Array<{ method: string; path: string }> = [
   { method: "GET",  path: "/api/healthz" },
   { method: "POST", path: "/api/auth/login" },
   { method: "POST", path: "/api/auth/seed-demo-user" },
+  { method: "POST", path: "/api/auth/demo-login" },
 ];
 
 export function authMiddleware(

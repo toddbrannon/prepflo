@@ -1,8 +1,13 @@
 import { useState, useEffect, useRef } from "react";
+import { useLocation } from "wouter";
 import { DEMO_MENU, DEMO_EVENTS } from "./demo-data.js";
 import { api } from "./lib/api";
+import { DemoSessionBanner } from "./components/DemoSessionBanner";
 
 // ─── Types & constants ────────────────────────────────────────────────────────
+
+const DEMO_SESSION_KEY = "pf_demo_session";
+const TOKEN_KEY = "pf_token";
 
 type Tab = "events" | "build-event" | "menu-database";
 
@@ -1209,6 +1214,11 @@ function App() {
   const [prepSheetEvent, setPrepSheetEvent] = useState<SavedEvent | null>(null);
   const [companyName, setCompanyName] = useState(loadCompanyName);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [demoSession, setDemoSession] = useState<{ expiresAt: string } | null>(() => {
+    const stored = localStorage.getItem(DEMO_SESSION_KEY);
+    return stored ? JSON.parse(stored) : null;
+  });
+  const [, navigate] = useLocation();
 
   function handleEdit(event: SavedEvent) { setEditingEvent(event); setActiveTab("build-event"); }
   function handleClearEdit() { setEditingEvent(null); }
@@ -1216,9 +1226,23 @@ function App() {
   function handleTabChange(tab: Tab) { if (tab !== "build-event") setEditingEvent(null); setSettingsOpen(false); setActiveTab(tab); }
   function handleCompanyNameChange(val: string) { setCompanyName(val); saveCompanyName(val); }
 
+  const handleDemoSessionExpired = () => {
+    localStorage.removeItem(DEMO_SESSION_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+    window.location.replace("/login");
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col"
       onClick={(e) => { if (settingsOpen && !(e.target as HTMLElement).closest("[data-settings]")) setSettingsOpen(false); }}>
+
+      {/* Demo Mode Banner */}
+      {demoSession && (
+        <DemoSessionBanner 
+          expiresAt={demoSession.expiresAt}
+          onExpired={handleDemoSessionExpired}
+        />
+      )}
 
       {prepSheetEvent && (
         <PrepSheetModal event={prepSheetEvent} companyName={companyName} onClose={() => setPrepSheetEvent(null)} />

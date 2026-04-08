@@ -12,11 +12,12 @@ import {
 } from "@/components/ui/card";
 
 const TOKEN_KEY = "pf_token";
+const DEMO_SESSION_KEY = "pf_demo_session";
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
 
 export default function Login() {
   const [email, setEmail] = useState("demo@prepflo.com");
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState("PrepFlo2026!");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [, navigate] = useLocation();
@@ -52,6 +53,54 @@ export default function Login() {
         return;
       }
 
+      localStorage.removeItem(DEMO_SESSION_KEY);
+      localStorage.setItem(TOKEN_KEY, token);
+      navigate("/");
+    } catch {
+      setError("Could not connect to server. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDemoLogin() {
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/demo-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const data: unknown = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg =
+          data && typeof data === "object" && "error" in data
+            ? String((data as { error: unknown }).error)
+            : "Failed to start demo. Please try again.";
+        setError(msg);
+        return;
+      }
+
+      const token =
+        data && typeof data === "object" && "token" in data
+          ? String((data as { token: unknown }).token)
+          : null;
+
+      if (!token) {
+        setError("Unexpected response from server.");
+        return;
+      }
+
+      // Store demo session info
+      const demoSession = {
+        expiresAt:
+          data && typeof data === "object" && "expiresAt" in data
+            ? String((data as { expiresAt: unknown }).expiresAt)
+            : new Date(Date.now() + 4 * 60 * 1000).toISOString(),
+      };
+
+      localStorage.setItem(DEMO_SESSION_KEY, JSON.stringify(demoSession));
       localStorage.setItem(TOKEN_KEY, token);
       navigate("/");
     } catch {
@@ -118,18 +167,38 @@ export default function Login() {
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Signing in…" : "Sign in"}
               </Button>
+
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="w-full" 
+                onClick={handleDemoLogin}
+                disabled={loading}
+              >
+                Try It Out (Demo Mode)
+              </Button>
             </form>
 
             {/* Demo credentials */}
             <div className="mt-5 rounded-md bg-secondary border border-border px-3 py-3 space-y-1.5">
               <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                Demo Credentials
+                Demo Mode
+              </p>
+              <p className="text-xs text-foreground">
+                Click "Try It Out" to explore PrepFlo with sample data. Your session will last 4 minutes and changes won't be saved.
+              </p>
+            </div>
+
+            {/* Demo credentials
+            <div className="mt-2 rounded-md bg-secondary border border-border px-3 py-3 space-y-1.5">
+              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                Standard Credentials
               </p>
               <div className="space-y-0.5">
                 <p className="text-xs text-foreground font-mono">demo@prepflo.com</p>
                 <p className="text-xs text-foreground font-mono">PrepFlo2026!</p>
               </div>
-            </div>
+            </div> */}
           </CardContent>
         </Card>
 
