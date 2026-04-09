@@ -127,88 +127,102 @@ async function ensureDemoUser() {
 
 // Helper: Seed initial demo data for a user
 async function seedDemoData(userId: string) {
-  // Define default demo items
-  const DEMO_DISHES = [
-    {
-      name: "Cheese & Charcuterie Board",
-      category: "Boards" as const,
-      prepItems: [
-        { id: "prep-1", name: "Assemble board", defaultQty: "1", allergyNote: "Dairy, nuts" },
-      ],
-    },
-    {
-      name: "Shrimp Crostini",
-      category: "Passed Appetizers" as const,
-      prepItems: [
-        { id: "prep-2", name: "Toast bread", defaultQty: "24", allergyNote: "Gluten" },
-        { id: "prep-3", name: "Top with shrimp", defaultQty: "24", allergyNote: "Shellfish" },
-      ],
-    },
-    {
-      name: "Caprese Salad",
-      category: "Sides / Salads" as const,
-      prepItems: [
-        { id: "prep-4", name: "Slice tomatoes", defaultQty: "2 lbs", allergyNote: "" },
-        { id: "prep-5", name: "Cube mozzarella", defaultQty: "1 lb", allergyNote: "Dairy" },
-      ],
-    },
-    {
-      name: "Herb Roasted Chicken",
-      category: "Entrees" as const,
-      prepItems: [
-        { id: "prep-6", name: "Season & roast", defaultQty: "2 chickens", allergyNote: "" },
-        { id: "prep-7", name: "Rest & carve", defaultQty: "15 min", allergyNote: "" },
-      ],
-    },
-    {
-      name: "Chocolate Mousse",
-      category: "Desserts" as const,
-      prepItems: [
-        { id: "prep-8", name: "Make mousse", defaultQty: "12 servings", allergyNote: "Dairy, nuts" },
-        { id: "prep-9", name: "Chill", defaultQty: "2 hours", allergyNote: "" },
-      ],
-    },
-  ];
+  try {
+    // Define default demo items
+    const DEMO_DISHES = [
+      {
+        name: "Cheese & Charcuterie Board",
+        category: "Boards" as const,
+        prepItems: [
+          { id: "prep-1", name: "Assemble board", defaultQty: "1", allergyNote: "Dairy, nuts" },
+        ],
+      },
+      {
+        name: "Shrimp Crostini",
+        category: "Passed Appetizers" as const,
+        prepItems: [
+          { id: "prep-2", name: "Toast bread", defaultQty: "24", allergyNote: "Gluten" },
+          { id: "prep-3", name: "Top with shrimp", defaultQty: "24", allergyNote: "Shellfish" },
+        ],
+      },
+      {
+        name: "Caprese Salad",
+        category: "Sides / Salads" as const,
+        prepItems: [
+          { id: "prep-4", name: "Slice tomatoes", defaultQty: "2 lbs", allergyNote: "" },
+          { id: "prep-5", name: "Cube mozzarella", defaultQty: "1 lb", allergyNote: "Dairy" },
+        ],
+      },
+      {
+        name: "Herb Roasted Chicken",
+        category: "Entrees" as const,
+        prepItems: [
+          { id: "prep-6", name: "Season & roast", defaultQty: "2 chickens", allergyNote: "" },
+          { id: "prep-7", name: "Rest & carve", defaultQty: "15 min", allergyNote: "" },
+        ],
+      },
+      {
+        name: "Chocolate Mousse",
+        category: "Desserts" as const,
+        prepItems: [
+          { id: "prep-8", name: "Make mousse", defaultQty: "12 servings", allergyNote: "Dairy, nuts" },
+          { id: "prep-9", name: "Chill", defaultQty: "2 hours", allergyNote: "" },
+        ],
+      },
+    ];
 
-  // Insert demo dishes
-  const insertedDishes = [];
-  for (const dish of DEMO_DISHES) {
-    const [inserted] = await db
-      .insert(dishesTable)
-      .values({
-        name: dish.name,
-        category: dish.category,
-        prepItems: dish.prepItems,
-      })
-      .returning({ id: dishesTable.id });
-    insertedDishes.push(inserted);
-  }
+    // Insert demo dishes
+    const insertedDishes = [];
+    for (const dish of DEMO_DISHES) {
+      const [inserted] = await db
+        .insert(dishesTable)
+        .values({
+          name: dish.name,
+          category: dish.category,
+          prepItems: dish.prepItems,
+        })
+        .returning({ id: dishesTable.id });
+      insertedDishes.push(inserted);
+    }
+    console.log("[seedDemoData] inserted", insertedDishes.length, "dishes");
 
-  // Insert a sample demo event with empty dishes array
-  // (client will fetch dishes separately and build the UI)
-  if (insertedDishes.length > 0) {
-    await db.insert(eventsTable).values({
-      name: "Sample Wedding Reception",
-      client: "John & Jane Smith",
-      date: new Date().toISOString().split("T")[0],
-      startTime: "18:00",
-      guestCount: "75",
-      venue: "Grand Ballroom",
-      onsiteContact: "Sarah Johnson",
-      allergies: "See prep notes",
-      notes: "Demo event - data will reset in 4 minutes",
-      dishes: [],
-      savedAt: new Date().toISOString(),
-    });
+    // Insert a sample demo event with empty dishes array
+    // (client will fetch dishes separately and build the UI)
+    if (insertedDishes.length > 0) {
+      const [event] = await db.insert(eventsTable).values({
+        name: "Sample Wedding Reception",
+        client: "John & Jane Smith",
+        date: new Date().toISOString().split("T")[0],
+        startTime: "18:00",
+        guestCount: "75",
+        venue: "Grand Ballroom",
+        onsiteContact: "Sarah Johnson",
+        allergies: "See prep notes",
+        notes: "Demo event - data will reset in 4 minutes",
+        dishes: [],
+        savedAt: new Date().toISOString(),
+      }).returning({ id: eventsTable.id });
+      console.log("[seedDemoData] inserted event:", event.id);
+    }
+  } catch (error) {
+    console.error("[seedDemoData] error:", error);
+    throw error;
   }
 }
 
 // Helper: Clear all demo data for a user
 async function clearDemoData(userId: string) {
-  // Delete all events (and related event_dishes via cascade)
-  await db.delete(eventsTable);
-  // Delete all dishes
-  await db.delete(dishesTable);
+  // Note: The schema doesn't currently scope dishes/events to users.
+  // For demo sessions, we clear ALL events (cascade deletes event_dishes).
+  // We don't delete dishes since they're treated as a shared library.
+  // TODO: Scope dishes and events to users for proper multi-tenancy.
+  try {
+    await db.delete(eventsTable);
+    console.log("[clearDemoData] deleted all events");
+  } catch (error) {
+    console.error("[clearDemoData] error deleting events:", error);
+    throw error;
+  }
 }
 
 const seedSchema = z.object({ secret: z.string().min(1) });
