@@ -53,10 +53,14 @@ router.post("/auth/demo-login", async (req, res) => {
   try {
     // Get or create demo user
     const userId = await ensureDemoUser();
+    console.log("[demo-login] ensured user:", userId);
 
     // Clear any old demo data and seed fresh
     await clearDemoData(userId);
+    console.log("[demo-login] cleared old data");
+    
     await seedDemoData(userId);
+    console.log("[demo-login] seeded new data");
 
     // Create a demo session with 4-minute expiration
     const demoToken = randomBytes(32).toString("hex");
@@ -71,6 +75,8 @@ router.post("/auth/demo-login", async (req, res) => {
       })
       .returning({ id: demoSessionsTable.id, expiresAt: demoSessionsTable.expiresAt });
 
+    console.log("[demo-login] created demo session:", session.id);
+
     // Create JWT token with session reference
     const jwtToken = signToken({ sub: userId, email: DEMO_EMAIL });
 
@@ -81,8 +87,11 @@ router.post("/auth/demo-login", async (req, res) => {
       durationMinutes: DEMO_SESSION_DURATION_MINUTES,
     });
   } catch (error) {
-    console.error("Demo login error:", error);
-    res.status(500).json({ error: "Failed to start demo session" });
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : "";
+    console.error("[demo-login] error:", errorMsg);
+    console.error("[demo-login] stack:", errorStack);
+    res.status(500).json({ error: "Failed to start demo session", details: errorMsg });
   }
 });
 
@@ -175,7 +184,8 @@ async function seedDemoData(userId: string) {
     insertedDishes.push(inserted);
   }
 
-  // Insert a sample demo event
+  // Insert a sample demo event with empty dishes array
+  // (client will fetch dishes separately and build the UI)
   if (insertedDishes.length > 0) {
     await db.insert(eventsTable).values({
       name: "Sample Wedding Reception",
@@ -187,25 +197,7 @@ async function seedDemoData(userId: string) {
       onsiteContact: "Sarah Johnson",
       allergies: "See prep notes",
       notes: "Demo event - data will reset in 4 minutes",
-      dishes: [
-        {
-          dishId: insertedDishes[0].id,
-          name: "Cheese & Charcuterie Board",
-          category: "Boards",
-          subNote: "Start 1 hour before guests",
-          prepItems: [{ prepItemId: "prep-1", name: "Assemble board", qty: "1", location: "Kitchen", allergyNote: "Dairy, nuts" }],
-        },
-        {
-          dishId: insertedDishes[1].id,
-          name: "Shrimp Crostini",
-          category: "Passed Appetizers",
-          subNote: "Serve immediately after prep",
-          prepItems: [
-            { prepItemId: "prep-2", name: "Toast bread", qty: "24", location: "Oven", allergyNote: "Gluten" },
-            { prepItemId: "prep-3", name: "Top with shrimp", qty: "24", location: "Prep Station", allergyNote: "Shellfish" },
-          ],
-        },
-      ],
+      dishes: [],
       savedAt: new Date().toISOString(),
     });
   }
