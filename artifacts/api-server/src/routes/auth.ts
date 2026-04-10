@@ -212,15 +212,13 @@ async function seedDemoData(userId: string) {
 
 // Helper: Clear all demo data for a user
 async function clearDemoData(userId: string) {
-  // Note: The schema doesn't currently scope dishes/events to users.
-  // For demo sessions, we clear ALL events (cascade deletes event_dishes).
-  // We don't delete dishes since they're treated as a shared library.
-  // TODO: Scope dishes and events to users for proper multi-tenancy.
   try {
     await db.delete(eventsTable);
     console.log("[clearDemoData] deleted all events");
+    await db.delete(dishesTable);
+    console.log("[clearDemoData] deleted all dishes");
   } catch (error) {
-    console.error("[clearDemoData] error deleting events:", error);
+    console.error("[clearDemoData] error:", error);
     throw error;
   }
 }
