@@ -64,8 +64,13 @@ export default function Login() {
   }
 
   async function handleDemoLogin() {
-    setError("");
-    setLoading(true);
+  setError("");
+  setLoading(true);
+
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 2000;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       const res = await fetch(`${API_BASE}/api/auth/demo-login`, {
         method: "POST",
@@ -73,12 +78,18 @@ export default function Login() {
       });
 
       const data: unknown = await res.json().catch(() => ({}));
+
       if (!res.ok) {
+        if (attempt < MAX_RETRIES) {
+          await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+          continue;
+        }
         const msg =
           data && typeof data === "object" && "error" in data
             ? String((data as { error: unknown }).error)
             : "Failed to start demo. Please try again.";
         setError(msg);
+        setLoading(false);
         return;
       }
 
@@ -89,10 +100,10 @@ export default function Login() {
 
       if (!token) {
         setError("Unexpected response from server.");
+        setLoading(false);
         return;
       }
 
-      // Store demo session info
       const demoSession = {
         expiresAt:
           data && typeof data === "object" && "expiresAt" in data
@@ -103,12 +114,19 @@ export default function Login() {
       localStorage.setItem(DEMO_SESSION_KEY, JSON.stringify(demoSession));
       localStorage.setItem(TOKEN_KEY, token);
       navigate("/");
+      return;
+
     } catch {
+      if (attempt < MAX_RETRIES) {
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+        continue;
+      }
       setError("Could not connect to server. Please try again.");
-    } finally {
-      setLoading(false);
     }
   }
+
+  setLoading(false);
+}
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
