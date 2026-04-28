@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
@@ -11,6 +11,7 @@ import {
   eventsTable,
 } from "@workspace/db";
 import { signToken } from "../lib/auth";
+import { DEMO_DISHES, DEMO_EVENTS } from "../lib/demo-seed-data";
 
 const router: IRouter = Router();
 
@@ -131,56 +132,13 @@ async function ensureDemoUser() {
 // Helper: Seed initial demo data for a user
 async function seedDemoData(userId: string) {
   try {
-    // Define default demo items
-    const DEMO_DISHES = [
-      {
-        name: "Cheese & Charcuterie Board",
-        category: "Boards" as const,
-        prepItems: [
-          { id: "prep-1", name: "Assemble board", defaultQty: "1", allergyNote: "Dairy, nuts" },
-        ],
-      },
-      {
-        name: "Shrimp Crostini",
-        category: "Passed Appetizers" as const,
-        prepItems: [
-          { id: "prep-2", name: "Toast bread", defaultQty: "24", allergyNote: "Gluten" },
-          { id: "prep-3", name: "Top with shrimp", defaultQty: "24", allergyNote: "Shellfish" },
-        ],
-      },
-      {
-        name: "Caprese Salad",
-        category: "Sides / Salads" as const,
-        prepItems: [
-          { id: "prep-4", name: "Slice tomatoes", defaultQty: "2 lbs", allergyNote: "" },
-          { id: "prep-5", name: "Cube mozzarella", defaultQty: "1 lb", allergyNote: "Dairy" },
-        ],
-      },
-      {
-        name: "Herb Roasted Chicken",
-        category: "Entrees" as const,
-        prepItems: [
-          { id: "prep-6", name: "Season & roast", defaultQty: "2 chickens", allergyNote: "" },
-          { id: "prep-7", name: "Rest & carve", defaultQty: "15 min", allergyNote: "" },
-        ],
-      },
-      {
-        name: "Chocolate Mousse",
-        category: "Desserts" as const,
-        prepItems: [
-          { id: "prep-8", name: "Make mousse", defaultQty: "12 servings", allergyNote: "Dairy, nuts" },
-          { id: "prep-9", name: "Chill", defaultQty: "2 hours", allergyNote: "" },
-        ],
-      },
-    ];
-
     // Insert demo dishes
     const insertedDishes = [];
     for (const dish of DEMO_DISHES) {
       const [inserted] = await db
         .insert(dishesTable)
         .values({
-          name: dish.name,
+          name: `${DEMO_TAG}${dish.name}`,
           category: dish.category,
           prepItems: dish.prepItems,
         })
@@ -189,23 +147,18 @@ async function seedDemoData(userId: string) {
     }
     console.log("[seedDemoData] inserted", insertedDishes.length, "dishes");
 
-    // Insert a sample demo event with empty dishes array
-    // (client will fetch dishes separately and build the UI)
     if (insertedDishes.length > 0) {
-      const [event] = await db.insert(eventsTable).values({
-        name: "Sample Wedding Reception",
-        client: "John & Jane Smith",
-        date: new Date().toISOString().split("T")[0],
-        startTime: "18:00",
-        guestCount: "75",
-        venue: "Grand Ballroom",
-        onsiteContact: "Sarah Johnson",
-        allergies: "See prep notes",
-        notes: "Demo event - data will reset in 4 minutes",
-        dishes: [],
-        savedAt: new Date().toISOString(),
-      }).returning({ id: eventsTable.id });
-      console.log("[seedDemoData] inserted event:", event.id);
+      const insertedEvents = await db
+        .insert(eventsTable)
+        .values(
+          DEMO_EVENTS.map((event) => ({
+            ...event,
+            name: `${DEMO_TAG}${event.name}`,
+            savedAt: new Date().toISOString(),
+          })),
+        )
+        .returning({ id: eventsTable.id, name: eventsTable.name });
+      console.log("[seedDemoData] inserted events:", insertedEvents.map((event) => event.name));
     }
   } catch (error) {
     console.error("[seedDemoData] error:", error);
@@ -213,13 +166,16 @@ async function seedDemoData(userId: string) {
   }
 }
 
-// Helper: Clear all demo data for a user
-async function clearDemoData(userId: string) {
+// Prefix used to identify demo-owned rows — never remove this from demo inserts.
+const DEMO_TAG = "[DEMO] ";
+
+// Helper: Clear all demo data (only rows tagged with DEMO_TAG — never touches real user data)
+async function clearDemoData(_userId: string) {
   try {
-    await db.delete(eventsTable);
-    console.log("[clearDemoData] deleted all events");
-    await db.delete(dishesTable);
-    console.log("[clearDemoData] deleted all dishes");
+    await db.delete(eventsTable).where(like(eventsTable.name, `${DEMO_TAG}%`));
+    console.log("[clearDemoData] deleted demo events");
+    await db.delete(dishesTable).where(like(dishesTable.name, `${DEMO_TAG}%`));
+    console.log("[clearDemoData] deleted demo dishes");
   } catch (error) {
     console.error("[clearDemoData] error:", error);
     throw error;
