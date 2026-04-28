@@ -62,6 +62,9 @@ router.post("/auth/demo-login", async (req, res) => {
     await seedDemoData(userId);
     console.log("[demo-login] seeded new data");
 
+    // Keep only one demo session per user to avoid stale-session confusion.
+    await db.delete(demoSessionsTable).where(eq(demoSessionsTable.userId, userId));
+
     // Create a demo session with 4-minute expiration
     const demoToken = randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + DEMO_SESSION_DURATION_MINUTES * 60 * 1000);

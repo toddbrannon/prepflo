@@ -1,6 +1,8 @@
 import type { Request, Response, NextFunction } from "express";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, gt } from "drizzle-orm";
 import { db, demoSessionsTable } from "@workspace/db";
+
+const DEMO_EMAIL = "demo@prepflo.com";
 
 // Extend Express Request to track demo mode
 declare global {
@@ -39,27 +41,22 @@ export async function demoSessionMiddleware(
   }
 
   try {
-    // Check if there's an active demo session for this user
+    const now = new Date();
+
+    // Find the newest active session only. Older expired rows should not force logout.
     const [demoSession] = await db
       .select()
       .from(demoSessionsTable)
-      .where(eq(demoSessionsTable.userId, user.id))
+      .where(
+        and(
+          eq(demoSessionsTable.userId, user.id),
+          gt(demoSessionsTable.expiresAt, now),
+        ),
+      )
+      .orderBy(desc(demoSessionsTable.expiresAt))
       .limit(1);
 
     if (demoSession) {
-      const now = new Date();
-
-      // Check if session is expired
-      if (demoSession.expiresAt < now) {
-        // Session expired - delete it
-        await db
-          .delete(demoSessionsTable)
-          .where(eq(demoSessionsTable.id, demoSession.id));
-
-        res.status(401).json({ error: "Demo session expired" });
-        return;
-      }
-
       // Mark as demo mode
       req.isDemoMode = true;
       req.demoSessionId = demoSession.id;
@@ -67,6 +64,17 @@ export async function demoSessionMiddleware(
       // Prevent write operations in demo mode (writes will be rolled back or not persisted)
       // For now, we'll allow writes but they won't be persisted in the real sense
       // The data will be reset when the next demo session starts
+      next();
+      return;
+    }
+
+    // Demo user without an active session should be bounced to login.
+    if (user.email === DEMO_EMAIL) {
+      await db
+        .delete(demoSessionsTable)
+        .where(eq(demoSessionsTable.userId, user.id));
+      res.status(401).json({ error: "Demo session expired" });
+      return;
     }
   } catch (error) {
     console.error("Demo session middleware error:", error);
